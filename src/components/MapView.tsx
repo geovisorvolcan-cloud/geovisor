@@ -7,8 +7,7 @@ import { VOLCANO_POSITION, DATA_POINTS, DataPointType } from "@/lib/mapData";
 
 // Fix Leaflet's default icon path when bundled
 function fixLeafletIcons() {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  delete (L.Icon.Default.prototype as any)._getIconUrl;
+  delete (L.Icon.Default.prototype as unknown as Record<string, unknown>)._getIconUrl;
   L.Icon.Default.mergeOptions({
     iconRetinaUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
     iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
