@@ -1,0 +1,36 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Leaflet map styles */
+@import "leaflet/dist/leaflet.css";
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+.leaflet-container {
+  height: 100%;
+  width: 100%;
+  background: #d4d0c8;
+}
+
+/* Custom leaflet marker overrides */
+.leaflet-default-icon-path {
+  background-image: url(/leaflet/marker-icon.png);
+}
+
+/* Custom popup styles */
+.leaflet-popup-content-wrapper {
+  border-radius: 12px;
+  padding: 0;
+  overflow: hidden;
+}
+
+.leaflet-popup-content {
+  margin: 0;
+  min-width: 160px;
+}
