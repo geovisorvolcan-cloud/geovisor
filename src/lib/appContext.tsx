@@ -43,6 +43,24 @@ export interface ParticipantEntry {
 
 export type ProgressCounts = Record<string, number>;
 
+export interface CampParticipant {
+  id: string;
+  fullName: string;
+  idNumber: string;
+  organization: string;
+  role: string;
+  phoneNumber: string;
+  email: string;
+  emergencyContactName: string;
+  emergencyContactPhone: string;
+  equipment: string[];
+  checkInDate: string;
+  checkOutDate: string;
+  notes: string;
+  status: "pending" | "checked_in" | "checked_out";
+  registeredAt: string;
+}
+
 interface AppContextType {
   dynamicPoints: DynamicPoint[];
   addDynamicPoint: (point: Omit<DynamicPoint, "id" | "addedAt">) => void;
@@ -52,6 +70,10 @@ interface AppContextType {
   removeParticipant: (id: string) => void;
   progressCounts: ProgressCounts;
   adjustProgress: (label: string, delta: number, total: number) => void;
+  campParticipants: CampParticipant[];
+  addCampParticipant: (participant: Omit<CampParticipant, "id" | "registeredAt">) => void;
+  removeCampParticipant: (id: string) => void;
+  updateCampParticipantStatus: (id: string, status: CampParticipant["status"]) => void;
 }
 
 // ─── Context ─────────────────────────────────────────────────────────────────
@@ -61,6 +83,7 @@ const AppContext = createContext<AppContextType | null>(null);
 const STORAGE_KEY_POINTS = "geovisor_dynamic_points";
 const STORAGE_KEY_PARTICIPANTS = "geovisor_participants";
 const STORAGE_KEY_PROGRESS = "geovisor_progress_counts";
+const STORAGE_KEY_CAMP_PARTICIPANTS = "geovisor_camp_participants";
 
 const DEFAULT_PARTICIPANTS: ParticipantEntry[] = [
   { id: "default_p1", name: "Ana", role: "field", position: [4.535, -75.395] },
@@ -99,6 +122,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [progressCounts, setProgressCounts] = useState<ProgressCounts>(
     DEFAULT_PROGRESS_COUNTS
   );
+  const [campParticipants, setCampParticipants] = useState<CampParticipant[]>([]);
   const [hydrated, setHydrated] = useState(false);
 
   // Hydrate from localStorage on mount
@@ -126,6 +150,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
           );
         }
       }
+      const rawCamp = localStorage.getItem(STORAGE_KEY_CAMP_PARTICIPANTS);
+      if (rawCamp) {
+        const parsed = JSON.parse(rawCamp);
+        if (Array.isArray(parsed)) setCampParticipants(parsed);
+      }
     } catch {
       // ignore
     }
@@ -147,6 +176,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (!hydrated) return;
     localStorage.setItem(STORAGE_KEY_PROGRESS, JSON.stringify(progressCounts));
   }, [progressCounts, hydrated]);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    localStorage.setItem(STORAGE_KEY_CAMP_PARTICIPANTS, JSON.stringify(campParticipants));
+  }, [campParticipants, hydrated]);
 
   const addDynamicPoint = useCallback(
     (point: Omit<DynamicPoint, "id" | "addedAt">) => {
@@ -194,6 +228,33 @@ export function AppProvider({ children }: { children: ReactNode }) {
     []
   );
 
+  const addCampParticipant = useCallback(
+    (participant: Omit<CampParticipant, "id" | "registeredAt">) => {
+      setCampParticipants((prev) => [
+        ...prev,
+        {
+          ...participant,
+          id: `camp_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+          registeredAt: new Date().toISOString(),
+        },
+      ]);
+    },
+    []
+  );
+
+  const removeCampParticipant = useCallback((id: string) => {
+    setCampParticipants((prev) => prev.filter((p) => p.id !== id));
+  }, []);
+
+  const updateCampParticipantStatus = useCallback(
+    (id: string, status: CampParticipant["status"]) => {
+      setCampParticipants((prev) =>
+        prev.map((p) => (p.id === id ? { ...p, status } : p))
+      );
+    },
+    []
+  );
+
   return (
     <AppContext.Provider
       value={{
@@ -205,6 +266,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
         removeParticipant,
         progressCounts,
         adjustProgress,
+        campParticipants,
+        addCampParticipant,
+        removeCampParticipant,
+        updateCampParticipantStatus,
       }}
     >
       {children}
