@@ -7,8 +7,10 @@ const MOCK_USER = {
   name: "Ana",
   status: "Active",
   location: "Santiago, Chile",
-  volcanoAlert: "Watch",
+  volcanoAlert: "Yellow",
 };
+
+const AUTH_ROLE_KEY = "geovisor_auth_role";
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -63,7 +65,10 @@ export default function DashboardPage() {
             View Map
           </button>
           <button
-            onClick={() => router.push("/")}
+            onClick={() => {
+              localStorage.removeItem(AUTH_ROLE_KEY);
+              router.push("/");
+            }}
             className="flex items-center gap-1.5 px-3 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition"
           >
             <LogoutIcon />

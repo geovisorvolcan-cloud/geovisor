@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
+const AUTH_ROLE_KEY = "geovisor_auth_role";
+
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -16,8 +18,14 @@ export default function LoginPage() {
       return;
     }
     setError("");
-    // Mock auth: any credentials are accepted
-    router.push("/dashboard");
+    // Mock auth: admin emails go to admin panel, others to dashboard
+    if (email.toLowerCase().includes("admin")) {
+      localStorage.setItem(AUTH_ROLE_KEY, "admin");
+      router.push("/admin");
+    } else {
+      localStorage.setItem(AUTH_ROLE_KEY, "viewer");
+      router.push("/dashboard");
+    }
   };
 
   return (
@@ -82,6 +90,9 @@ export default function LoginPage() {
         >
           View Public Map
         </button>
+        <p className="text-center text-xs text-gray-400 mt-1">
+          Administrators sign in with an email containing admin.
+        </p>
       </div>
     </div>
   );

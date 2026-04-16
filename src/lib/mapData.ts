@@ -1,19 +1,28 @@
 // Cerro Machín Volcano – Colombia
 export const VOLCANO_POSITION: [number, number] = [4.5188, -75.3802];
 
+export const VOLCANO_ALERT = {
+  level: "Yellow",
+  status: "No important changes",
+  description:
+    "Active volcano with changes in the baseline behavior of monitored parameters.",
+};
+
 export type DataPointType =
   | "social"
   | "sgi_geo"
+  | "sgi_magnetometry"
+  | "sgi_gravimetry"
   | "gidco"
   | "mt_acquisition"
-  | "seismic_sensor"
-  | "field_participant";
+  | "uis_geophysics";
 
 export interface DataPoint {
   id: string;
   position: [number, number];
   type: DataPointType;
   label?: string;
+  description?: string;
 }
 
 export interface Participant {
@@ -26,18 +35,13 @@ export interface Participant {
 }
 
 export const DATA_POINTS: DataPoint[] = [
-  // Field participants (red pins)
-  { id: "fp1", position: [4.535, -75.395], type: "field_participant", label: "Ana" },
-  { id: "fp2", position: [4.505, -75.355], type: "field_participant" },
-  { id: "fp3", position: [4.498, -75.408], type: "field_participant" },
-
-  // Social & Environmental (blue circles)
+  // Social and environmental characterization (blue circles)
   { id: "se1", position: [4.540, -75.370], type: "social" },
   { id: "se2", position: [4.495, -75.345], type: "social" },
 
-  // SGI GEO – Magnetometry/Gravimetry (purple circles)
-  { id: "sg1", position: [4.525, -75.385], type: "sgi_geo" },
-  { id: "sg2", position: [4.510, -75.360], type: "sgi_geo" },
+  // SGI GEO – Magnetometry (magenta) and Gravimetry (pink)
+  { id: "sg1", position: [4.525, -75.385], type: "sgi_magnetometry" },
+  { id: "sg2", position: [4.510, -75.360], type: "sgi_gravimetry" },
 
   // GIDCO – Magnetotelluric (green circles)
   { id: "gi1", position: [4.550, -75.375], type: "gidco" },
@@ -53,13 +57,10 @@ export const DATA_POINTS: DataPoint[] = [
   { id: "gi11", position: [4.475, -75.395], type: "gidco" },
   { id: "gi12", position: [4.470, -75.370], type: "gidco" },
 
-  // MT Acquisition (orange circles)
-  { id: "mt1", position: [4.542, -75.390], type: "mt_acquisition" },
-  { id: "mt2", position: [4.498, -75.360], type: "mt_acquisition" },
+  // UIS Geophysics Team – Magnetotelluric acquisition (orange circles)
+  { id: "mt1", position: [4.542, -75.390], type: "uis_geophysics" },
+  { id: "mt2", position: [4.498, -75.360], type: "uis_geophysics" },
 
-  // Seismic sensors (radio wave icon)
-  { id: "ss1", position: [4.515, -75.415], type: "seismic_sensor" },
-  { id: "ss2", position: [4.490, -75.380], type: "seismic_sensor" },
 ];
 
 export const PARTICIPANTS: Participant[] = [
@@ -69,7 +70,7 @@ export const PARTICIPANTS: Participant[] = [
     position: [4.535, -75.395],
     status: "active",
     lastUpdate: "0:42:53",
-    location: "Santiago, Chile",
+    location: "Cerro Machín",
   },
   {
     name: "Carlos",
@@ -81,8 +82,34 @@ export const PARTICIPANTS: Participant[] = [
 ];
 
 export const PROGRESS_DATA = [
-  { label: "Social and environmental characterization", current: 1, total: 99, color: "bg-purple-600" },
-  { label: "SGI GEO progress", current: 5, total: 99, color: "bg-purple-600" },
-  { label: "GIDCO progress", current: 12, total: 99, color: "bg-orange-500" },
-  { label: "MT acquisition progress", current: 2, total: 10, color: "bg-orange-400" },
+  {
+    label: "Social and environmental characterization",
+    current: 1,
+    total: 99,
+    color: "#3B82F6",
+  },
+  {
+    label: "SGI GEO Magnetometry progress",
+    current: 0,
+    total: 50,
+    color: "#D946EF",
+  },
+  {
+    label: "SGI GEO Gravimetry progress",
+    current: 0,
+    total: 50,
+    color: "#EC4899",
+  },
+  {
+    label: "GIDCO progress",
+    current: 12,
+    total: 20,
+    color: "#22C55E",
+  },
+  {
+    label: "UIS Geophysics Team progress",
+    current: 2,
+    total: 10,
+    color: "#F97316",
+  },
 ];
