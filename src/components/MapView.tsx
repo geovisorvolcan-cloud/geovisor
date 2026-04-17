@@ -296,7 +296,7 @@ export default function MapView({
     partMarkersRef.current = [];
 
     participantEntries
-      .filter((p) => p.position)
+      .filter((p) => p.role === "field" && p.position)
       .forEach((p) => {
         const color = p.role === "field" ? "#EF4444" : "#3B82F6";
         const icon = createParticipantIcon(color, p.name);

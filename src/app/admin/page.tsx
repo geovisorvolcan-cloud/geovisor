@@ -202,7 +202,7 @@ export default function AdminPage() {
         return;
       }
 
-      setPendingParticipant({
+      const participant = {
         name: pName.trim(),
         role,
         emergencyContact: needsEmergencyContact
@@ -212,13 +212,23 @@ export default function AdminPage() {
               phone: emergencyContactPhone.trim(),
             }
           : undefined,
-      });
+      };
+
+      if (role === "office") {
+        addParticipant(participant);
+        resetParticipantForm();
+        setShowAddOffice(false);
+        setPendingParticipant(null);
+        return;
+      }
+
+      setPendingParticipant(participant);
 
       resetParticipantForm();
       if (role === "field") setShowAddField(false);
-      if (role === "office") setShowAddOffice(false);
     },
     [
+      addParticipant,
       pName,
       emergencyContactName,
       emergencyContactAffiliation,
