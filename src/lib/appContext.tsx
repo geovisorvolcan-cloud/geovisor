@@ -68,6 +68,7 @@ interface AppContextType {
   participants: ParticipantEntry[];
   addParticipant: (participant: Omit<ParticipantEntry, "id">) => void;
   removeParticipant: (id: string) => void;
+  updateParticipantRole: (id: string, role: ParticipantEntry["role"]) => void;
   progressCounts: ProgressCounts;
   adjustProgress: (label: string, delta: number, total: number) => void;
   campParticipants: CampParticipant[];
@@ -215,6 +216,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setParticipants((prev) => prev.filter((p) => p.id !== id));
   }, []);
 
+  const updateParticipantRole = useCallback(
+    (id: string, role: ParticipantEntry["role"]) => {
+      setParticipants((prev) =>
+        prev.map((participant) =>
+          participant.id === id ? { ...participant, role } : participant
+        )
+      );
+    },
+    []
+  );
+
   const adjustProgress = useCallback(
     (label: string, delta: number, total: number) => {
       setProgressCounts((prev) => {
@@ -264,6 +276,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         participants,
         addParticipant,
         removeParticipant,
+        updateParticipantRole,
         progressCounts,
         adjustProgress,
         campParticipants,

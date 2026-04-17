@@ -4,14 +4,11 @@ import { useState, useCallback, useEffect, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import { useAppContext, DynamicPointType } from "@/lib/appContext";
+import { useAuth } from "@/lib/authContext";
 import { PROGRESS_DATA, VOLCANO_ALERT } from "@/lib/mapData";
 import ProgressAdjustItem from "@/components/ProgressAdjustItem";
 
 const MapView = dynamic(() => import("@/components/MapView"), { ssr: false });
-
-// ─── Constants ────────────────────────────────────────────────────────────────
-
-const AUTH_ROLE_KEY = "geovisor_auth_role";
 
 type TeamOption = { value: DynamicPointType; label: string };
 const TEAM_OPTIONS: TeamOption[] = [
@@ -74,7 +71,7 @@ function formatCoordinate(value: number) {
 
 export default function AdminPage() {
   const router = useRouter();
-  const [hasAdminAccess, setHasAdminAccess] = useState(false);
+  const { ready, isAuthenticated, user, logout } = useAuth();
   const {
     dynamicPoints,
     addDynamicPoint,
@@ -82,6 +79,7 @@ export default function AdminPage() {
     participants,
     addParticipant,
     removeParticipant,
+    updateParticipantRole,
     progressCounts,
     adjustProgress,
   } = useAppContext();
@@ -113,16 +111,22 @@ export default function AdminPage() {
 
   const fieldParticipants = participants.filter((p) => p.role === "field");
   const officeParticipants = participants.filter((p) => p.role === "office");
+  const hasAdminAccess = ready && isAuthenticated && user?.role === "admin";
 
   // ── Clock ───────────────────────────────────────────────────────────────
   const [clock, setClock] = useState("");
   useEffect(() => {
-    if (localStorage.getItem(AUTH_ROLE_KEY) !== "admin") {
+    if (!ready) return;
+
+    if (!isAuthenticated) {
       router.replace("/");
       return;
     }
-    setHasAdminAccess(true);
-  }, [router]);
+
+    if (user?.role !== "admin") {
+      router.replace("/map");
+    }
+  }, [isAuthenticated, ready, router, user]);
 
   useEffect(() => {
     const tick = () =>
@@ -242,6 +246,18 @@ export default function AdminPage() {
     if (role === "office") setOfficeRemoveMode(false);
   };
 
+  const handleSwitchParticipantRole = useCallback(
+    (id: string, role: "field" | "office") => {
+      updateParticipantRole(id, role);
+      setFieldRemoveMode(false);
+      setOfficeRemoveMode(false);
+      setShowAddField(false);
+      setShowAddOffice(false);
+      setPendingParticipant(null);
+    },
+    [updateParticipantRole]
+  );
+
   const toggleAddField = () => {
     resetParticipantForm();
     setShowAddField((v) => !v);
@@ -260,7 +276,7 @@ export default function AdminPage() {
     setPendingParticipant(null);
   };
 
-  if (!hasAdminAccess) {
+  if (!ready || !hasAdminAccess) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-gray-100 text-sm text-gray-600">
         Checking administrator access...
@@ -288,7 +304,7 @@ export default function AdminPage() {
             </span>
             <button
               onClick={() => {
-                localStorage.removeItem(AUTH_ROLE_KEY);
+                logout();
                 router.push("/");
               }}
               className="px-3 py-1.5 bg-white/80 backdrop-blur rounded-full shadow text-xs font-medium text-gray-600 hover:bg-white transition"
@@ -578,20 +594,33 @@ export default function AdminPage() {
           <p className="text-sm font-semibold text-gray-700 mb-3">Field participants</p>
           <div className="flex flex-wrap gap-2 items-center">
             {fieldParticipants.map((p) => (
-              <button
+              <div
                 key={p.id}
-                onClick={() =>
-                  fieldRemoveMode && handleRemoveParticipant(p.id, "field")
-                }
-                title={fieldRemoveMode ? `Remove ${p.name}` : p.name}
-                className={`bg-red-500 text-white text-xs font-semibold px-3 py-1 rounded-full transition ${
-                  fieldRemoveMode
-                    ? "ring-2 ring-red-300 hover:bg-red-700 cursor-pointer"
-                    : "cursor-default"
-                }`}
+                className="flex items-center gap-1 rounded-full bg-red-50 border border-red-100 px-1.5 py-1"
               >
-                {p.name}
-              </button>
+                <button
+                  onClick={() =>
+                    fieldRemoveMode && handleRemoveParticipant(p.id, "field")
+                  }
+                  title={fieldRemoveMode ? `Remove ${p.name}` : p.name}
+                  className={`bg-red-500 text-white text-xs font-semibold px-3 py-1 rounded-full transition ${
+                    fieldRemoveMode
+                      ? "ring-2 ring-red-300 hover:bg-red-700 cursor-pointer"
+                      : "cursor-default"
+                  }`}
+                >
+                  {p.name}
+                </button>
+                {!fieldRemoveMode && (
+                  <button
+                    type="button"
+                    onClick={() => handleSwitchParticipantRole(p.id, "office")}
+                    className="rounded-full bg-white px-2 py-1 text-[10px] font-semibold text-red-600 border border-red-200 hover:bg-red-100 transition"
+                  >
+                    To office
+                  </button>
+                )}
+              </div>
             ))}
 
             {/* + button */}
@@ -633,20 +662,33 @@ export default function AdminPage() {
           <p className="text-sm font-semibold text-gray-700 mb-3">Office participants</p>
           <div className="flex flex-wrap gap-2 items-center">
             {officeParticipants.map((p) => (
-              <button
+              <div
                 key={p.id}
-                onClick={() =>
-                  officeRemoveMode && handleRemoveParticipant(p.id, "office")
-                }
-                title={officeRemoveMode ? `Remove ${p.name}` : p.name}
-                className={`bg-blue-500 text-white text-xs font-semibold px-3 py-1 rounded-full transition ${
-                  officeRemoveMode
-                    ? "ring-2 ring-blue-300 hover:bg-blue-700 cursor-pointer"
-                    : "cursor-default"
-                }`}
+                className="flex items-center gap-1 rounded-full bg-blue-50 border border-blue-100 px-1.5 py-1"
               >
-                {p.name}
-              </button>
+                <button
+                  onClick={() =>
+                    officeRemoveMode && handleRemoveParticipant(p.id, "office")
+                  }
+                  title={officeRemoveMode ? `Remove ${p.name}` : p.name}
+                  className={`bg-blue-500 text-white text-xs font-semibold px-3 py-1 rounded-full transition ${
+                    officeRemoveMode
+                      ? "ring-2 ring-blue-300 hover:bg-blue-700 cursor-pointer"
+                      : "cursor-default"
+                  }`}
+                >
+                  {p.name}
+                </button>
+                {!officeRemoveMode && (
+                  <button
+                    type="button"
+                    onClick={() => handleSwitchParticipantRole(p.id, "field")}
+                    className="rounded-full bg-white px-2 py-1 text-[10px] font-semibold text-blue-600 border border-blue-200 hover:bg-blue-100 transition"
+                  >
+                    To field
+                  </button>
+                )}
+              </div>
             ))}
 
             {/* + button */}
@@ -702,13 +744,13 @@ export default function AdminPage() {
           })}
         </div>
 
-        {/* Dashboard button */}
+        {/* Footer action */}
         <div className="p-5 border-t border-gray-100">
           <button
-            onClick={() => router.push("/dashboard")}
+            onClick={() => router.push("/map")}
             className="w-full bg-gray-900 text-white py-2 rounded-lg text-sm font-semibold hover:bg-gray-700 transition"
           >
-            My Dashboard
+            Open Read-Only Map
           </button>
         </div>
       </aside>
