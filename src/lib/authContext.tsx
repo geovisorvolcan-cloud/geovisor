@@ -45,14 +45,13 @@ function mapRole(backendRole: string): "admin" | "user" {
   return backendRole === "admin" ? "admin" : "user";
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function mapBackendUser(data: any): AuthUser {
+function mapBackendUser(data: Record<string, unknown>): AuthUser {
   return {
-    id: String(data.id ?? data._id),
-    name: data.name,
-    email: data.email,
-    role: mapRole(data.role),
-    createdAt: data.createdAt ?? new Date().toISOString(),
+    id: String(data.id ?? data._id ?? ""),
+    name: String(data.name ?? ""),
+    email: String(data.email ?? ""),
+    role: mapRole(String(data.role ?? "")),
+    createdAt: String(data.createdAt ?? new Date().toISOString()),
   };
 }
 
