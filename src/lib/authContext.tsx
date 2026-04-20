@@ -8,15 +8,9 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import {
-  AUTH_STORAGE_KEY_ACCOUNTS,
-  AUTH_STORAGE_KEY_SESSION,
-  SEEDED_ADMIN_EMAIL,
-  SEEDED_ADMIN_PASSWORD,
-  type AuthUser,
-  type StoredAuthAccount,
-  toAuthUser,
-} from "@/lib/auth";
+import { AUTH_STORAGE_KEY_SESSION, type AuthUser } from "@/lib/auth";
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5000";
 
 interface LoginPayload {
   email: string;
@@ -39,186 +33,107 @@ interface AuthContextType {
   ready: boolean;
   isAuthenticated: boolean;
   user: AuthUser | null;
-  login: (payload: LoginPayload) => AuthActionResult;
-  register: (payload: RegisterPayload) => AuthActionResult;
+  token: string | null;
+  login: (payload: LoginPayload) => Promise<AuthActionResult>;
+  register: (payload: RegisterPayload) => Promise<AuthActionResult>;
   logout: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
-function createId(prefix: string) {
-  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
-    return `${prefix}_${crypto.randomUUID()}`;
-  }
-
-  return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+function mapRole(backendRole: string): "admin" | "user" {
+  return backendRole === "admin" ? "admin" : "user";
 }
 
-function normalizeEmail(email: string) {
-  return email.trim().toLowerCase();
-}
-
-function createSeedAdmin(): StoredAuthAccount {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function mapBackendUser(data: any): AuthUser {
   return {
-    id: "seed_admin",
-    name: "System Administrator",
-    email: SEEDED_ADMIN_EMAIL,
-    password: SEEDED_ADMIN_PASSWORD,
-    role: "admin",
-    createdAt: "2026-01-01T00:00:00.000Z",
+    id: String(data.id ?? data._id),
+    name: data.name,
+    email: data.email,
+    role: mapRole(data.role),
+    createdAt: data.createdAt ?? new Date().toISOString(),
   };
 }
 
-function ensureSeedAdmin(accounts: StoredAuthAccount[]) {
-  const hasAdmin = accounts.some(
-    (account) => account.email === SEEDED_ADMIN_EMAIL && account.role === "admin"
-  );
-
-  if (hasAdmin) {
-    return accounts;
-  }
-
-  return [createSeedAdmin(), ...accounts];
-}
-
-function readStoredAccounts() {
-  try {
-    const raw = localStorage.getItem(AUTH_STORAGE_KEY_ACCOUNTS);
-    if (!raw) return ensureSeedAdmin([]);
-
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return ensureSeedAdmin([]);
-
-    const accounts = parsed.filter((value): value is StoredAuthAccount => {
-      return (
-        value &&
-        typeof value === "object" &&
-        typeof value.id === "string" &&
-        typeof value.name === "string" &&
-        typeof value.email === "string" &&
-        typeof value.password === "string" &&
-        (value.role === "admin" || value.role === "user") &&
-        typeof value.createdAt === "string"
-      );
-    });
-
-    return ensureSeedAdmin(
-      accounts.map((account) => ({
-        ...account,
-        email: normalizeEmail(account.email),
-      }))
-    );
-  } catch {
-    return ensureSeedAdmin([]);
-  }
-}
-
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [accounts, setAccounts] = useState<StoredAuthAccount[]>([]);
   const [user, setUser] = useState<AuthUser | null>(null);
+  const [token, setToken] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    const storedAccounts = readStoredAccounts();
-    setAccounts(storedAccounts);
-
-    const sessionId = localStorage.getItem(AUTH_STORAGE_KEY_SESSION);
-    if (sessionId) {
-      const sessionAccount = storedAccounts.find((account) => account.id === sessionId);
-      if (sessionAccount) {
-        setUser(toAuthUser(sessionAccount));
-      } else {
-        localStorage.removeItem(AUTH_STORAGE_KEY_SESSION);
-      }
-    }
-
-    setReady(true);
-  }, []);
-
-  useEffect(() => {
-    if (!ready) return;
-    localStorage.setItem(AUTH_STORAGE_KEY_ACCOUNTS, JSON.stringify(accounts));
-  }, [accounts, ready]);
-
-  useEffect(() => {
-    if (!ready) return;
-
-    if (user) {
-      localStorage.setItem(AUTH_STORAGE_KEY_SESSION, user.id);
+    const storedToken = localStorage.getItem(AUTH_STORAGE_KEY_SESSION);
+    if (!storedToken) {
+      setReady(true);
       return;
     }
 
-    localStorage.removeItem(AUTH_STORAGE_KEY_SESSION);
-  }, [ready, user]);
+    fetch(`${API_URL}/api/user/profile`, {
+      headers: { Authorization: `Bearer ${storedToken}` },
+    })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data?.id) {
+          setToken(storedToken);
+          setUser(mapBackendUser(data));
+        } else {
+          localStorage.removeItem(AUTH_STORAGE_KEY_SESSION);
+        }
+      })
+      .catch(() => localStorage.removeItem(AUTH_STORAGE_KEY_SESSION))
+      .finally(() => setReady(true));
+  }, []);
 
-  const login = useCallback(
-    ({ email, password }: LoginPayload): AuthActionResult => {
-      const normalizedEmail = normalizeEmail(email);
-      const account = accounts.find(
-        (candidate) =>
-          candidate.email === normalizedEmail && candidate.password === password
-      );
+  const login = useCallback(async ({ email, password }: LoginPayload): Promise<AuthActionResult> => {
+    try {
+      const res = await fetch(`${API_URL}/api/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
 
-      if (!account) {
-        return {
-          ok: false,
-          error: "Invalid email or password.",
-        };
+      const data = await res.json();
+      if (!res.ok) {
+        return { ok: false, error: data.error ?? "Invalid email or password." };
       }
 
-      const nextUser = toAuthUser(account);
+      const nextUser = mapBackendUser(data.user);
+      setToken(data.token);
       setUser(nextUser);
+      localStorage.setItem(AUTH_STORAGE_KEY_SESSION, data.token);
       return { ok: true, user: nextUser };
-    },
-    [accounts]
-  );
+    } catch {
+      return { ok: false, error: "Network error. Please try again." };
+    }
+  }, []);
 
-  const register = useCallback(
-    ({ name, email, password }: RegisterPayload): AuthActionResult => {
-      const trimmedName = name.trim();
-      const normalizedEmail = normalizeEmail(email);
+  const register = useCallback(async ({ name, email, password }: RegisterPayload): Promise<AuthActionResult> => {
+    try {
+      const res = await fetch(`${API_URL}/api/auth/register`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, email, password }),
+      });
 
-      if (!trimmedName) {
-        return { ok: false, error: "Full name is required." };
+      const data = await res.json();
+      if (!res.ok) {
+        return { ok: false, error: data.error ?? "Unable to create account." };
       }
 
-      if (!normalizedEmail) {
-        return { ok: false, error: "Email is required." };
-      }
-
-      if (password.trim().length < 6) {
-        return {
-          ok: false,
-          error: "Password must be at least 6 characters.",
-        };
-      }
-
-      if (accounts.some((account) => account.email === normalizedEmail)) {
-        return {
-          ok: false,
-          error: "This email is already registered.",
-        };
-      }
-
-      const account: StoredAuthAccount = {
-        id: createId("auth"),
-        name: trimmedName,
-        email: normalizedEmail,
-        password,
-        role: "user",
-        createdAt: new Date().toISOString(),
-      };
-
-      setAccounts((previous) => [...previous, account]);
-      const nextUser = toAuthUser(account);
+      const nextUser = mapBackendUser(data.user);
+      setToken(data.token);
       setUser(nextUser);
+      localStorage.setItem(AUTH_STORAGE_KEY_SESSION, data.token);
       return { ok: true, user: nextUser };
-    },
-    [accounts]
-  );
+    } catch {
+      return { ok: false, error: "Network error. Please try again." };
+    }
+  }, []);
 
   const logout = useCallback(() => {
     setUser(null);
+    setToken(null);
+    localStorage.removeItem(AUTH_STORAGE_KEY_SESSION);
   }, []);
 
   return (
@@ -227,6 +142,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         ready,
         isAuthenticated: Boolean(user),
         user,
+        token,
         login,
         register,
         logout,

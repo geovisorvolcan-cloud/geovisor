@@ -22,7 +22,7 @@ export default function LoginPage() {
     router.replace(getRouteForRole(user.role));
   }, [isAuthenticated, ready, router, user]);
 
-  const handleSignIn = (event: FormEvent<HTMLFormElement>) => {
+  const handleSignIn = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     if (!email.trim() || !password.trim()) {
@@ -30,7 +30,7 @@ export default function LoginPage() {
       return;
     }
 
-    const result = login({ email, password });
+    const result = await login({ email, password });
     if (!result.ok) {
       setError(result.error ?? "Unable to sign in.");
       return;

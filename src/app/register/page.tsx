@@ -20,7 +20,7 @@ export default function RegisterPage() {
     router.replace(getRouteForRole(user.role));
   }, [isAuthenticated, ready, router, user]);
 
-  const handleRegister = (event: FormEvent<HTMLFormElement>) => {
+  const handleRegister = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     if (!name.trim() || !email.trim() || !password.trim()) {
@@ -33,7 +33,7 @@ export default function RegisterPage() {
       return;
     }
 
-    const result = register({ name, email, password });
+    const result = await register({ name, email, password });
     if (!result.ok) {
       setError(result.error ?? "Unable to create account.");
       return;
