@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useAppContext } from "@/lib/appContext";
 import { useAuth } from "@/lib/authContext";
-import { PROGRESS_DATA, VOLCANO_ALERT } from "@/lib/mapData";
+import { PROGRESS_DATA, VOLCANO_ALERT_LEVELS } from "@/lib/mapData";
 
 const MapView = dynamic(() => import("@/components/MapView"), { ssr: false });
 
@@ -19,10 +19,31 @@ type LegendPointType =
 
 export default function MapPage() {
   const router = useRouter();
-  const { dynamicPoints, participants, progressCounts } = useAppContext();
+  const { dynamicPoints, participants, progressTotals, volcanoAlertLevel } = useAppContext();
+  type DynType = (typeof dynamicPoints)[number]["type"];
+  const alertInfo = VOLCANO_ALERT_LEVELS[volcanoAlertLevel];
   const { ready, isAuthenticated, user, logout } = useAuth();
   const [clock, setClock] = useState("");
   const [sosSent, setSosSent] = useState(false);
+  const [showParticipants, setShowParticipants] = useState(true);
+  const [hiddenParticipantIds, setHiddenParticipantIds] = useState<Set<string>>(new Set());
+  const [hiddenPointTypes, setHiddenPointTypes] = useState<Set<DynType>>(new Set());
+
+  const togglePointType = (type: DynType) => {
+    setHiddenPointTypes((prev) => {
+      const next = new Set(prev);
+      if (next.has(type)) next.delete(type); else next.add(type);
+      return next;
+    });
+  };
+
+  const toggleParticipantVisibility = (id: string) => {
+    setHiddenParticipantIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
 
   const fieldParticipants = participants.filter((participant) => participant.role === "field");
   const officeParticipants = participants.filter((participant) => participant.role === "office");
@@ -108,20 +129,24 @@ export default function MapPage() {
           className="absolute top-14 left-4 z-10 flex flex-col gap-3 w-72"
           style={{ maxHeight: "calc(100vh - 6rem - 10rem)", overflowY: "auto" }}
         >
-          <div className="bg-white rounded-xl shadow-lg border-l-4 border-yellow-400 p-4">
+          <div
+            className="bg-white rounded-xl shadow-lg border-l-4 p-4"
+            style={{ borderColor: alertInfo.color }}
+          >
             <div className="flex items-center gap-2 mb-2">
-              <span className="text-yellow-500 text-lg">!</span>
+              <span className="text-lg">⚠</span>
               <span className="font-bold text-gray-900 text-sm">Volcano Alert</span>
             </div>
             <div className="mb-2">
-              <span className="inline-block bg-yellow-300 text-yellow-900 text-xs font-bold px-4 py-1 rounded-lg">
-                {VOLCANO_ALERT.level}
+              <span
+                className="inline-block text-white text-xs font-bold px-4 py-1 rounded-lg"
+                style={{ backgroundColor: alertInfo.color }}
+              >
+                {alertInfo.label}
               </span>
             </div>
-            <p className="text-sm text-gray-800 font-semibold">{VOLCANO_ALERT.status}</p>
-            <p className="text-xs text-gray-600 mt-1 leading-relaxed">
-              {VOLCANO_ALERT.description}
-            </p>
+            <p className="text-sm text-gray-800 font-semibold">{alertInfo.status}</p>
+            <p className="text-xs text-gray-600 mt-1 leading-relaxed">{alertInfo.description}</p>
             <p className="text-xs text-gray-400 mt-1">
               Last updated: <span className="font-mono">{clock}</span>
             </p>
@@ -180,26 +205,58 @@ export default function MapPage() {
           <MapView
             useSatellite={true}
             extraPoints={dynamicPoints}
-            participantEntries={participants}
+            hiddenPointTypes={hiddenPointTypes as Set<import("@/lib/appContext").DynamicPointType>}
+            participantEntries={showParticipants ? participants.filter((p) => !hiddenParticipantIds.has(p.id)) : []}
+            volcanoAlertLevel={volcanoAlertLevel}
           />
         </div>
       </div>
 
       <aside className="w-80 flex-shrink-0 bg-white border-l border-gray-200 overflow-y-auto flex flex-col">
+        {/* Participants header with map toggle */}
+        <div className="px-5 pt-5 pb-3 border-b border-gray-100 flex items-center justify-between">
+          <p className="text-sm font-semibold text-gray-700">Participants</p>
+          <button
+            type="button"
+            onClick={() => setShowParticipants((v) => !v)}
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border transition ${
+              showParticipants
+                ? "bg-blue-50 border-blue-200 text-blue-600 hover:bg-blue-100"
+                : "bg-gray-100 border-gray-200 text-gray-400 hover:bg-gray-200"
+            }`}
+          >
+            <span>{showParticipants ? "👁" : "🚫"}</span>
+            {showParticipants ? "Visible on map" : "Hidden on map"}
+          </button>
+        </div>
+
         <div className="p-5 border-b border-gray-100">
           <div className="flex items-center justify-between mb-3">
             <p className="text-sm font-semibold text-gray-700">Field participants</p>
             <span className="text-xs text-gray-400">{fieldParticipants.length}</span>
           </div>
           <div className="flex flex-wrap gap-2">
-            {fieldParticipants.map((participant) => (
-              <span
-                key={participant.id}
-                className="bg-red-500 text-white text-xs font-semibold px-3 py-1 rounded-full"
-              >
-                {participant.name}
-              </span>
-            ))}
+            {fieldParticipants.map((participant) => {
+              const hidden = hiddenParticipantIds.has(participant.id);
+              return (
+                <div
+                  key={participant.id}
+                  className={`flex items-center gap-1 rounded-full border px-1.5 py-1 transition ${hidden ? "bg-gray-100 border-gray-200 opacity-50" : "bg-red-50 border-red-100"}`}
+                >
+                  <span className={`text-white text-xs font-semibold px-3 py-1 rounded-full ${hidden ? "bg-gray-400" : "bg-red-500"}`}>
+                    {participant.name}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => toggleParticipantVisibility(participant.id)}
+                    title={hidden ? "Show on map" : "Hide on map"}
+                    className="w-5 h-5 flex items-center justify-center rounded-full bg-white border border-gray-200 text-[10px] hover:bg-gray-100 transition"
+                  >
+                    {hidden ? "🚫" : "👁"}
+                  </button>
+                </div>
+              );
+            })}
           </div>
         </div>
 
@@ -209,26 +266,69 @@ export default function MapPage() {
             <span className="text-xs text-gray-400">{officeParticipants.length}</span>
           </div>
           <div className="flex flex-wrap gap-2">
-            {officeParticipants.map((participant) => (
-              <span
-                key={participant.id}
-                className="bg-blue-500 text-white text-xs font-semibold px-3 py-1 rounded-full"
-              >
-                {participant.name}
-              </span>
-            ))}
+            {officeParticipants.map((participant) => {
+              const hidden = hiddenParticipantIds.has(participant.id);
+              return (
+                <div
+                  key={participant.id}
+                  className={`flex items-center gap-1 rounded-full border px-1.5 py-1 transition ${hidden ? "bg-gray-100 border-gray-200 opacity-50" : "bg-blue-50 border-blue-100"}`}
+                >
+                  <span className={`text-white text-xs font-semibold px-3 py-1 rounded-full ${hidden ? "bg-gray-400" : "bg-blue-500"}`}>
+                    {participant.name}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => toggleParticipantVisibility(participant.id)}
+                    title={hidden ? "Show on map" : "Hide on map"}
+                    className="w-5 h-5 flex items-center justify-center rounded-full bg-white border border-gray-200 text-[10px] hover:bg-gray-100 transition"
+                  >
+                    {hidden ? "🚫" : "👁"}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Point-type visibility toggles */}
+        <div className="p-5 border-b border-gray-100">
+          <p className="text-xs font-semibold text-gray-500 mb-2">Point types on map</p>
+          <div className="space-y-1.5">
+            {PROGRESS_DATA.map((item) => {
+              const hidden = hiddenPointTypes.has(item.teamType as DynType);
+              return (
+                <button
+                  key={item.teamType}
+                  type="button"
+                  onClick={() => togglePointType(item.teamType as DynType)}
+                  className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg border text-xs font-medium transition ${
+                    hidden
+                      ? "bg-gray-100 border-gray-200 text-gray-400"
+                      : "bg-white border-gray-200 text-gray-700 hover:bg-gray-50"
+                  }`}
+                >
+                  <span
+                    className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                    style={{ backgroundColor: hidden ? "#d1d5db" : item.color }}
+                  />
+                  <span className="flex-1 text-left truncate">{item.label}</span>
+                  <span className="flex-shrink-0 text-[10px]">{hidden ? "🚫" : "👁"}</span>
+                </button>
+              );
+            })}
           </div>
         </div>
 
         <div className="p-5 space-y-5 flex-1">
           {PROGRESS_DATA.map((item) => {
-            const current = progressCounts[item.label] ?? item.current;
+            const current = dynamicPoints.filter((p) => p.type === item.teamType).length;
+            const total = progressTotals[item.label] ?? item.total;
             return (
               <ProgressSummaryItem
                 key={item.label}
                 label={item.label}
                 current={current}
-                total={item.total}
+                total={total}
                 color={item.color}
               />
             );

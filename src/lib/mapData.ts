@@ -1,12 +1,43 @@
 // Cerro Machín Volcano – Colombia
 export const VOLCANO_POSITION: [number, number] = [4.5188, -75.3802];
 
-export const VOLCANO_ALERT = {
-  level: "Yellow",
-  status: "No important changes",
-  description:
-    "Active volcano with changes in the baseline behavior of monitored parameters.",
+export type VolcanoAlertLevel = "green" | "yellow" | "orange" | "red";
+
+export const VOLCANO_ALERT_LEVELS: Record<
+  VolcanoAlertLevel,
+  { label: string; color: string; borderColor: string; status: string; description: string }
+> = {
+  green: {
+    label: "Green",
+    color: "#16a34a",
+    borderColor: "border-green-500",
+    status: "Normal activity",
+    description: "Volcano behaving within normal parameters. No eruption expected.",
+  },
+  yellow: {
+    label: "Yellow",
+    color: "#ca8a04",
+    borderColor: "border-yellow-400",
+    status: "No important changes",
+    description: "Active volcano with changes in the baseline behavior of monitored parameters.",
+  },
+  orange: {
+    label: "Orange",
+    color: "#ea580c",
+    borderColor: "border-orange-500",
+    status: "Heightened activity",
+    description: "Increased unrest. Eruption possible within days to weeks.",
+  },
+  red: {
+    label: "Red",
+    color: "#dc2626",
+    borderColor: "border-red-500",
+    status: "Eruption imminent or in progress",
+    description: "Eruption imminent, in progress, or recently ended. Immediate action required.",
+  },
 };
+
+export const DEFAULT_VOLCANO_ALERT_LEVEL: VolcanoAlertLevel = "yellow";
 
 export type DataPointType =
   | "social"
@@ -34,34 +65,7 @@ export interface Participant {
   location: string;
 }
 
-export const DATA_POINTS: DataPoint[] = [
-  // Social and environmental characterization (blue circles)
-  { id: "se1", position: [4.540, -75.370], type: "social" },
-  { id: "se2", position: [4.495, -75.345], type: "social" },
-
-  // SGI GEO – Magnetometry (magenta) and Gravimetry (pink)
-  { id: "sg1", position: [4.525, -75.385], type: "sgi_magnetometry" },
-  { id: "sg2", position: [4.510, -75.360], type: "sgi_gravimetry" },
-
-  // GIDCO – Magnetotelluric (green circles)
-  { id: "gi1", position: [4.550, -75.375], type: "gidco" },
-  { id: "gi2", position: [4.545, -75.355], type: "gidco" },
-  { id: "gi3", position: [4.538, -75.400], type: "gidco" },
-  { id: "gi4", position: [4.530, -75.345], type: "gidco" },
-  { id: "gi5", position: [4.520, -75.410], type: "gidco" },
-  { id: "gi6", position: [4.510, -75.390], type: "gidco" },
-  { id: "gi7", position: [4.502, -75.370], type: "gidco" },
-  { id: "gi8", position: [4.495, -75.355], type: "gidco" },
-  { id: "gi9", position: [4.488, -75.390], type: "gidco" },
-  { id: "gi10", position: [4.480, -75.365], type: "gidco" },
-  { id: "gi11", position: [4.475, -75.395], type: "gidco" },
-  { id: "gi12", position: [4.470, -75.370], type: "gidco" },
-
-  // UIS Geophysics Team – Magnetotelluric acquisition (orange circles)
-  { id: "mt1", position: [4.542, -75.390], type: "uis_geophysics" },
-  { id: "mt2", position: [4.498, -75.360], type: "uis_geophysics" },
-
-];
+export const DATA_POINTS: DataPoint[] = [];
 
 export const PARTICIPANTS: Participant[] = [
   {
@@ -84,32 +88,32 @@ export const PARTICIPANTS: Participant[] = [
 export const PROGRESS_DATA = [
   {
     label: "Social and environmental characterization",
-    current: 1,
     total: 99,
     color: "#3B82F6",
+    teamType: "social" as const,
   },
   {
     label: "SGI GEO Magnetometry progress",
-    current: 0,
     total: 50,
     color: "#D946EF",
+    teamType: "sgi_magnetometry" as const,
   },
   {
     label: "SGI GEO Gravimetry progress",
-    current: 0,
     total: 50,
     color: "#EC4899",
+    teamType: "sgi_gravimetry" as const,
   },
   {
     label: "GIDCO progress",
-    current: 12,
     total: 20,
     color: "#22C55E",
+    teamType: "gidco" as const,
   },
   {
     label: "UIS Geophysics Team progress",
-    current: 2,
     total: 10,
     color: "#F97316",
+    teamType: "uis_geophysics" as const,
   },
 ];
