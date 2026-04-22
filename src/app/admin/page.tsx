@@ -101,6 +101,44 @@ export default function AdminPage() {
     });
   }, []);
 
+  // ── SGC bulletin (auto-scraped) ─────────────────────────────────────────
+  type VolcanBulletin = {
+    alertLevel: string;
+    alertText: string;
+    bulletinUrl: string;
+    weekKey: string;
+    scrapedAt: string;
+  };
+  const [sgcBulletin, setSgcBulletin] = useState<VolcanBulletin | null>(null);
+  const [scrapeLoading, setScrapeLoading] = useState(false);
+  const [scrapeError, setScrapeError] = useState("");
+
+  useEffect(() => {
+    fetch(`${API_URL}/api/volcan-bulletin/latest`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => setSgcBulletin(d))
+      .catch(() => {});
+  }, []);
+
+  const handleManualScrape = async () => {
+    if (!token) return;
+    setScrapeLoading(true);
+    setScrapeError("");
+    try {
+      const res = await fetch(`${API_URL}/api/volcan-bulletin/scrape`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (!res.ok) { setScrapeError(data.error ?? "Scrape failed"); return; }
+      setSgcBulletin(data.bulletin);
+    } catch {
+      setScrapeError("Network error.");
+    } finally {
+      setScrapeLoading(false);
+    }
+  };
+
   // ── Registered users (from backend) ────────────────────────────────────
   const [registeredUsers, setRegisteredUsers] = useState<RegisteredUser[]>([]);
   const [usersError, setUsersError] = useState("");
@@ -276,6 +314,46 @@ export default function AdminPage() {
             <p className="text-xs text-gray-400 mt-1">
               Last updated: <span className="font-mono">{clock}</span>
             </p>
+
+            {/* SGC Auto-scraped bulletin */}
+            <div className="mt-3 pt-3 border-t border-gray-100">
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">SGC Boletín Semanal</span>
+                <button
+                  type="button"
+                  onClick={handleManualScrape}
+                  disabled={scrapeLoading}
+                  className="text-xs px-2 py-0.5 rounded bg-gray-100 hover:bg-gray-200 text-gray-600 disabled:opacity-50 transition"
+                >
+                  {scrapeLoading ? "Consultando…" : "Actualizar"}
+                </button>
+              </div>
+              {scrapeError && (
+                <p className="text-xs text-red-500 mb-1">{scrapeError}</p>
+              )}
+              {sgcBulletin ? (
+                <div>
+                  <p className="text-xs text-gray-700 leading-relaxed">{sgcBulletin.alertText}</p>
+                  <div className="flex items-center gap-2 mt-1.5">
+                    {sgcBulletin.bulletinUrl && (
+                      <a
+                        href={sgcBulletin.bulletinUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-blue-500 hover:underline"
+                      >
+                        Ver boletín
+                      </a>
+                    )}
+                    <span className="text-xs text-gray-400 ml-auto">
+                      {sgcBulletin.weekKey} · {new Date(sgcBulletin.scrapedAt).toLocaleDateString("es-CO")}
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-xs text-gray-400 italic">Sin datos aún. Haz clic en &quot;Actualizar&quot; para consultar.</p>
+              )}
+            </div>
           </div>
 
           {/* Scrollable: Add Point + Map Legend */}
