@@ -3,7 +3,7 @@
 import { useEffect, useRef } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import { VOLCANO_ALERT, VOLCANO_POSITION, DATA_POINTS } from "@/lib/mapData";
+import { VOLCANO_POSITION, VOLCANO_ALERT_LEVELS, type VolcanoAlertLevel } from "@/lib/mapData";
 import {
   DynamicPoint,
   DynamicPointType,
@@ -51,10 +51,10 @@ function createParticipantIcon(color: string, label?: string) {
   });
 }
 
-function createVolcanoIcon() {
+function createVolcanoIcon(haloColor: string) {
   const html = `<div style="display:flex;align-items:center;justify-content:center;">
     <svg width="44" height="44" viewBox="0 0 44 44" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="22" cy="22" r="22" fill="rgba(249,115,22,0.18)"/>
+      <circle cx="22" cy="22" r="22" fill="${haloColor}" opacity="0.22"/>
       <polygon points="22,6 38,36 6,36" fill="none" stroke="#1f2937" stroke-width="2.5" stroke-linejoin="round"/>
       <circle cx="22" cy="12" r="3" fill="white" stroke="#1f2937" stroke-width="2"/>
     </svg>
@@ -158,9 +158,11 @@ const DYNAMIC_LABEL: Record<DynamicPointType, string> = {
 export interface MapViewProps {
   useSatellite?: boolean;
   extraPoints?: DynamicPoint[];
+  hiddenPointTypes?: Set<DynamicPointType>;
   participantEntries?: ParticipantEntry[];
   onMapClick?: (position: [number, number]) => void;
   isPickingLocation?: boolean;
+  volcanoAlertLevel?: VolcanoAlertLevel;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -168,12 +170,15 @@ export interface MapViewProps {
 export default function MapView({
   useSatellite = true,
   extraPoints = [],
+  hiddenPointTypes,
   participantEntries = [],
   onMapClick,
   isPickingLocation = false,
+  volcanoAlertLevel = "yellow",
 }: MapViewProps) {
   const mapRef = useRef<L.Map | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const volcanoMarkerRef = useRef<L.Marker | null>(null);
   const dynMarkersRef = useRef<L.Marker[]>([]);
   const partMarkersRef = useRef<L.Marker[]>([]);
 
@@ -204,45 +209,12 @@ export default function MapView({
       }).addTo(map);
     }
 
-    // Volcano marker
-    L.marker(VOLCANO_POSITION, { icon: createVolcanoIcon() })
+    // Volcano marker — halo color matches initial alert level
+    const initInfo = VOLCANO_ALERT_LEVELS[volcanoAlertLevel];
+    const volcanoMarker = L.marker(VOLCANO_POSITION, { icon: createVolcanoIcon(initInfo.color) })
       .addTo(map)
-      .bindPopup(
-        `<div style="font-size:13px;padding:8px 12px;min-width:140px;">
-          <strong style="display:block;margin-bottom:4px;">Cerro Machín</strong>
-          <span style="color:#ca8a04;font-weight:700;">⚠ ${escapeHtml(
-            VOLCANO_ALERT.level
-          )} alert</span>
-          <div style="color:#374151;margin-top:4px;">${escapeHtml(
-            VOLCANO_ALERT.status
-          )}</div>
-          <div style="color:#6b7280;margin-top:4px;">${escapeHtml(
-            VOLCANO_ALERT.description
-          )}</div>
-        </div>`
-      );
-
-    // Static data points (no field participants – those come from participantEntries)
-    DATA_POINTS.forEach((point) => {
-      const iconType = normalizePointType(point.type);
-      const icon = createDynamicPointIcon(iconType);
-
-      const marker = L.marker(point.position, { icon }).addTo(map);
-      if (point.label) {
-        marker.bindTooltip(escapeHtml(point.label), {
-          permanent: false,
-          direction: "top",
-        });
-      }
-      if (point.description) {
-        marker.bindPopup(
-          `<div style="font-size:12px;padding:6px 10px;">
-            ${point.label ? `<strong>${escapeHtml(point.label)}</strong><br/>` : ""}
-            ${escapeHtml(point.description)}
-          </div>`
-        );
-      }
-    });
+      .bindPopup("", { autoClose: false, closeOnClick: false });
+    volcanoMarkerRef.current = volcanoMarker;
 
     mapRef.current = map;
     return () => {
@@ -252,6 +224,22 @@ export default function MapView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // ── Update volcano icon halo + popup when alert level changes ───────────
+  useEffect(() => {
+    const marker = volcanoMarkerRef.current;
+    if (!marker) return;
+    const info = VOLCANO_ALERT_LEVELS[volcanoAlertLevel];
+    marker.setIcon(createVolcanoIcon(info.color));
+    marker.setPopupContent(
+      `<div style="font-size:13px;padding:8px 12px;min-width:160px;">
+        <strong style="display:block;margin-bottom:4px;">Cerro Machín</strong>
+        <span style="font-weight:700;color:${info.color};">⚠ ${escapeHtml(info.label)} alert</span>
+        <div style="color:#374151;margin-top:4px;">${escapeHtml(info.status)}</div>
+        <div style="color:#6b7280;margin-top:4px;font-size:11px;">${escapeHtml(info.description)}</div>
+      </div>`
+    );
+  }, [volcanoAlertLevel]);
+
   // ── Dynamic (admin-added) points ─────────────────────────────────────────
   useEffect(() => {
     const map = mapRef.current;
@@ -260,7 +248,11 @@ export default function MapView({
     dynMarkersRef.current.forEach((m) => map.removeLayer(m));
     dynMarkersRef.current = [];
 
-    extraPoints.forEach((pt) => {
+    const visiblePoints = hiddenPointTypes
+      ? extraPoints.filter((pt) => !hiddenPointTypes.has(pt.type))
+      : extraPoints;
+
+    visiblePoints.forEach((pt) => {
       const pointType = normalizePointType(pt.type);
       const typeLabel = DYNAMIC_LABEL[pointType] ?? pointType;
       const icon = createDynamicPointIcon(pointType);
@@ -285,7 +277,7 @@ export default function MapView({
       const marker = L.marker(pt.position, { icon }).addTo(map).bindPopup(popup);
       dynMarkersRef.current.push(marker);
     });
-  }, [extraPoints]);
+  }, [extraPoints, hiddenPointTypes]);
 
   // ── Participant markers ──────────────────────────────────────────────────
   useEffect(() => {
@@ -326,7 +318,7 @@ export default function MapView({
 
         const marker = L.marker(p.position!, { icon })
           .addTo(map)
-          .bindPopup(popup);
+          .bindPopup(popup, { autoClose: false, closeOnClick: false });
         partMarkersRef.current.push(marker);
       });
   }, [participantEntries]);

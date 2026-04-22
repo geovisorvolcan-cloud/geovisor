@@ -8,7 +8,8 @@ import React, {
   useCallback,
   ReactNode,
 } from "react";
-import { PROGRESS_DATA } from "@/lib/mapData";
+import { PROGRESS_DATA, DEFAULT_VOLCANO_ALERT_LEVEL, type VolcanoAlertLevel } from "@/lib/mapData";
+export type { VolcanoAlertLevel };
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5000";
 
@@ -43,7 +44,7 @@ export interface ParticipantEntry {
   };
 }
 
-export type ProgressCounts = Record<string, number>;
+export type ProgressTotals = Record<string, number>;
 
 export interface CampParticipant {
   id: string;
@@ -64,15 +65,21 @@ export interface CampParticipant {
 }
 
 interface AppContextType {
+  volcanoAlertLevel: VolcanoAlertLevel;
+  setVolcanoAlertLevel: (level: VolcanoAlertLevel) => void;
   dynamicPoints: DynamicPoint[];
   addDynamicPoint: (point: Omit<DynamicPoint, "id" | "addedAt">) => void;
   removeDynamicPoint: (id: string) => void;
+  updateDynamicPoint: (
+    id: string,
+    updates: Partial<Pick<DynamicPoint, "position" | "description" | "name">>
+  ) => void;
   participants: ParticipantEntry[];
   addParticipant: (participant: Omit<ParticipantEntry, "id">) => void;
   removeParticipant: (id: string) => void;
   updateParticipantRole: (id: string, role: ParticipantEntry["role"]) => void;
-  progressCounts: ProgressCounts;
-  adjustProgress: (label: string, delta: number, total: number) => void;
+  progressTotals: ProgressTotals;
+  setProgressTotal: (label: string, total: number) => void;
   campParticipants: CampParticipant[];
   addCampParticipant: (participant: Omit<CampParticipant, "id" | "registeredAt">) => void;
   removeCampParticipant: (id: string) => void;
@@ -85,45 +92,36 @@ const AppContext = createContext<AppContextType | null>(null);
 
 const STORAGE_KEY_POINTS = "geovisor_dynamic_points";
 const STORAGE_KEY_PARTICIPANTS = "geovisor_participants";
-const STORAGE_KEY_PROGRESS = "geovisor_progress_counts";
+const STORAGE_KEY_PROGRESS_TOTALS = "geovisor_progress_totals";
 const STORAGE_KEY_CAMP_PARTICIPANTS = "geovisor_camp_participants";
+const STORAGE_KEY_VOLCANO_ALERT = "geovisor_volcano_alert";
 
-const DEFAULT_PARTICIPANTS: ParticipantEntry[] = [
-  { id: "default_p1", name: "Ana", role: "field", position: [4.535, -75.395] },
-  { id: "default_p2", name: "Carlos", role: "office" },
-];
+const DEFAULT_PARTICIPANTS: ParticipantEntry[] = [];
 
-const DEFAULT_PROGRESS_COUNTS: ProgressCounts = PROGRESS_DATA.reduce(
-  (acc, item) => ({
-    ...acc,
-    [item.label]: item.current,
-  }),
+const DEFAULT_PROGRESS_TOTALS: ProgressTotals = PROGRESS_DATA.reduce(
+  (acc, item) => ({ ...acc, [item.label]: item.total }),
   {}
 );
 
-function clampProgress(value: number, total: number) {
-  return Math.min(total, Math.max(0, Math.round(value)));
-}
-
-function normalizeProgressCounts(counts: ProgressCounts) {
-  return PROGRESS_DATA.reduce<ProgressCounts>((acc, item) => {
-    const value = Number(counts[item.label] ?? item.current);
-    acc[item.label] = clampProgress(
-      Number.isFinite(value) ? value : item.current,
-      item.total
-    );
+function normalizeProgressTotals(stored: ProgressTotals): ProgressTotals {
+  return PROGRESS_DATA.reduce<ProgressTotals>((acc, item) => {
+    const value = Number(stored[item.label] ?? item.total);
+    acc[item.label] = Number.isFinite(value) && value >= 0 ? Math.round(value) : item.total;
     return acc;
   }, {});
 }
 
 // ─── Provider ─────────────────────────────────────────────────────────────────
 
+const VALID_ALERT_LEVELS: VolcanoAlertLevel[] = ["green", "yellow", "orange", "red"];
+
 export function AppProvider({ children }: { children: ReactNode }) {
+  const [volcanoAlertLevel, setVolcanoAlertLevelState] = useState<VolcanoAlertLevel>(DEFAULT_VOLCANO_ALERT_LEVEL);
   const [dynamicPoints, setDynamicPoints] = useState<DynamicPoint[]>([]);
   const [participants, setParticipants] =
     useState<ParticipantEntry[]>(DEFAULT_PARTICIPANTS);
-  const [progressCounts, setProgressCounts] = useState<ProgressCounts>(
-    DEFAULT_PROGRESS_COUNTS
+  const [progressTotals, setProgressTotalsState] = useState<ProgressTotals>(
+    DEFAULT_PROGRESS_TOTALS
   );
   const [campParticipants, setCampParticipants] = useState<CampParticipant[]>([]);
   const [hydrated, setHydrated] = useState(false);
@@ -165,6 +163,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // Hydrate from localStorage on mount
   useEffect(() => {
     try {
+      const rawAlert = localStorage.getItem(STORAGE_KEY_VOLCANO_ALERT);
+      if (rawAlert && VALID_ALERT_LEVELS.includes(rawAlert as VolcanoAlertLevel)) {
+        setVolcanoAlertLevelState(rawAlert as VolcanoAlertLevel);
+      }
       const raw = localStorage.getItem(STORAGE_KEY_POINTS);
       if (raw) {
         const parsed = JSON.parse(raw);
@@ -175,15 +177,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
         const parsed = JSON.parse(rawP);
         if (Array.isArray(parsed) && parsed.length > 0) setParticipants(parsed);
       }
-      const rawProgress = localStorage.getItem(STORAGE_KEY_PROGRESS);
-      if (rawProgress) {
-        const parsed = JSON.parse(rawProgress);
+      const rawTotals = localStorage.getItem(STORAGE_KEY_PROGRESS_TOTALS);
+      if (rawTotals) {
+        const parsed = JSON.parse(rawTotals);
         if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-          setProgressCounts(
-            normalizeProgressCounts({
-              ...DEFAULT_PROGRESS_COUNTS,
-              ...(parsed as ProgressCounts),
-            })
+          setProgressTotalsState(
+            normalizeProgressTotals({ ...DEFAULT_PROGRESS_TOTALS, ...(parsed as ProgressTotals) })
           );
         }
       }
@@ -201,6 +200,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // Persist whenever state changes (after hydration)
   useEffect(() => {
     if (!hydrated) return;
+    localStorage.setItem(STORAGE_KEY_VOLCANO_ALERT, volcanoAlertLevel);
+  }, [volcanoAlertLevel, hydrated]);
+
+  useEffect(() => {
+    if (!hydrated) return;
     localStorage.setItem(STORAGE_KEY_POINTS, JSON.stringify(dynamicPoints));
   }, [dynamicPoints, hydrated]);
 
@@ -211,13 +215,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!hydrated) return;
-    localStorage.setItem(STORAGE_KEY_PROGRESS, JSON.stringify(progressCounts));
-  }, [progressCounts, hydrated]);
+    localStorage.setItem(STORAGE_KEY_PROGRESS_TOTALS, JSON.stringify(progressTotals));
+  }, [progressTotals, hydrated]);
 
   useEffect(() => {
     if (!hydrated) return;
     localStorage.setItem(STORAGE_KEY_CAMP_PARTICIPANTS, JSON.stringify(campParticipants));
   }, [campParticipants, hydrated]);
+
+  const setVolcanoAlertLevel = useCallback((level: VolcanoAlertLevel) => {
+    setVolcanoAlertLevelState(level);
+  }, []);
 
   const addDynamicPoint = useCallback(
     (point: Omit<DynamicPoint, "id" | "addedAt">) => {
@@ -234,6 +242,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const removeDynamicPoint = useCallback((id: string) => {
     setDynamicPoints((prev) => prev.filter((point) => point.id !== id));
   }, []);
+
+  const updateDynamicPoint = useCallback(
+    (
+      id: string,
+      updates: Partial<Pick<DynamicPoint, "position" | "description" | "name">>
+    ) => {
+      setDynamicPoints((prev) =>
+        prev.map((p) => (p.id === id ? { ...p, ...updates } : p))
+      );
+    },
+    []
+  );
 
   const addParticipant = useCallback(
     (participant: Omit<ParticipantEntry, "id">) => {
@@ -263,18 +283,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     []
   );
 
-  const adjustProgress = useCallback(
-    (label: string, delta: number, total: number) => {
-      setProgressCounts((prev) => {
-        const current = prev[label] ?? 0;
-        return {
-          ...prev,
-          [label]: clampProgress(current + delta, total),
-        };
-      });
-    },
-    []
-  );
+  const setProgressTotal = useCallback((label: string, total: number) => {
+    const clamped = Math.max(0, Math.round(total));
+    setProgressTotalsState((prev) => ({ ...prev, [label]: clamped }));
+  }, []);
 
   const addCampParticipant = useCallback(
     (participant: Omit<CampParticipant, "id" | "registeredAt">) => {
@@ -306,15 +318,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
   return (
     <AppContext.Provider
       value={{
+        volcanoAlertLevel,
+        setVolcanoAlertLevel,
         dynamicPoints,
         addDynamicPoint,
         removeDynamicPoint,
+        updateDynamicPoint,
         participants,
         addParticipant,
         removeParticipant,
         updateParticipantRole,
-        progressCounts,
-        adjustProgress,
+        progressTotals,
+        setProgressTotal,
         campParticipants,
         addCampParticipant,
         removeCampParticipant,
