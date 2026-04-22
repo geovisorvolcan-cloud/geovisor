@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useAppContext } from "@/lib/appContext";
 import { useAuth } from "@/lib/authContext";
+import { useGeolocation } from "@/lib/useGeolocation";
 import { PROGRESS_DATA, VOLCANO_ALERT } from "@/lib/mapData";
 
 const MapView = dynamic(() => import("@/components/MapView"), { ssr: false });
@@ -21,6 +22,7 @@ export default function MapPage() {
   const router = useRouter();
   const { dynamicPoints, participants, progressCounts } = useAppContext();
   const { ready, isAuthenticated, user, logout } = useAuth();
+  const { sharing, error: geoError, startSharing, stopSharing } = useGeolocation();
   const [clock, setClock] = useState("");
   const [sosSent, setSosSent] = useState(false);
 
@@ -134,10 +136,13 @@ export default function MapPage() {
             isRegisteredUser={Boolean(isRegisteredUser)}
             userName={user?.name ?? ""}
             sosSent={sosSent}
+            sharing={sharing}
+            geoError={geoError}
             onRegister={() => router.push("/register")}
             onSignIn={() => router.push("/")}
             onOpenAdmin={() => router.push("/admin")}
             onSendSos={handleSendSos}
+            onToggleSharing={() => (sharing ? stopSharing() : startSharing())}
           />
         </div>
 
@@ -273,10 +278,13 @@ function AccessCard({
   isRegisteredUser,
   userName,
   sosSent,
+  sharing,
+  geoError,
   onRegister,
   onSignIn,
   onOpenAdmin,
   onSendSos,
+  onToggleSharing,
 }: {
   ready: boolean;
   isAuthenticated: boolean;
@@ -284,10 +292,13 @@ function AccessCard({
   isRegisteredUser: boolean;
   userName: string;
   sosSent: boolean;
+  sharing: boolean;
+  geoError: string | null;
   onRegister: () => void;
   onSignIn: () => void;
   onOpenAdmin: () => void;
   onSendSos: () => void;
+  onToggleSharing: () => void;
 }) {
   if (!ready) {
     return (
@@ -332,9 +343,10 @@ function AccessCard({
           Signed in as {userName}. Participant editing and field or office role changes are
           available only in the administrator panel.
         </p>
+        <LocationButton sharing={sharing} geoError={geoError} onToggle={onToggleSharing} />
         <button
           onClick={onOpenAdmin}
-          className="w-full mt-4 rounded-lg bg-gray-900 text-white text-xs font-semibold py-2 hover:bg-gray-700 transition"
+          className="w-full mt-2 rounded-lg bg-gray-900 text-white text-xs font-semibold py-2 hover:bg-gray-700 transition"
         >
           Open Admin Panel
         </button>
@@ -349,14 +361,15 @@ function AccessCard({
           <span className="text-red-500 text-lg">!</span>
           <h2 className="text-sm font-semibold text-gray-900">Emergency Alert</h2>
         </div>
-        <p className="text-xs text-gray-600 mb-4 leading-relaxed">
+        <p className="text-xs text-gray-600 mb-3 leading-relaxed">
           Signed in as {userName}. You can view the map and emit an SOS alert if an emergency
           occurs in the field.
         </p>
+        <LocationButton sharing={sharing} geoError={geoError} onToggle={onToggleSharing} />
         <button
           onClick={onSendSos}
           disabled={sosSent}
-          className={`w-full flex items-center justify-center gap-2 py-3 rounded-xl text-white font-bold text-xs transition ${
+          className={`w-full mt-2 flex items-center justify-center gap-2 py-3 rounded-xl text-white font-bold text-xs transition ${
             sosSent
               ? "bg-gray-400 cursor-not-allowed"
               : "bg-red-600 hover:bg-red-700 active:scale-95"
@@ -369,6 +382,35 @@ function AccessCard({
   }
 
   return null;
+}
+
+function LocationButton({
+  sharing,
+  geoError,
+  onToggle,
+}: {
+  sharing: boolean;
+  geoError: string | null;
+  onToggle: () => void;
+}) {
+  return (
+    <div className="mt-3 mb-1">
+      <button
+        onClick={onToggle}
+        className={`w-full flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-semibold transition ${
+          sharing
+            ? "bg-green-100 text-green-700 border border-green-300 hover:bg-green-200"
+            : "bg-gray-100 text-gray-600 border border-gray-200 hover:bg-gray-200"
+        }`}
+      >
+        <span>{sharing ? "⬤" : "○"}</span>
+        {sharing ? "Compartiendo ubicación" : "Compartir mi ubicación"}
+      </button>
+      {geoError ? (
+        <p className="text-xs text-red-500 mt-1 text-center">{geoError}</p>
+      ) : null}
+    </div>
+  );
 }
 
 function ProgressSummaryItem({

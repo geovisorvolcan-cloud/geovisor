@@ -10,6 +10,8 @@ import React, {
 } from "react";
 import { PROGRESS_DATA } from "@/lib/mapData";
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5000";
+
 // ─── Types ──────────────────────────────────────────────────────────────────
 
 export type DynamicPointType =
@@ -125,6 +127,40 @@ export function AppProvider({ children }: { children: ReactNode }) {
   );
   const [campParticipants, setCampParticipants] = useState<CampParticipant[]>([]);
   const [hydrated, setHydrated] = useState(false);
+
+  // Poll backend for live participant positions every 10 seconds
+  useEffect(() => {
+    const fetchParticipants = async () => {
+      try {
+        const res = await fetch(`${API_URL}/api/map/participants`);
+        if (!res.ok) return;
+        const data: Array<{
+          name: string;
+          role: string;
+          position?: number[];
+          status: string;
+          location: string;
+        }> = await res.json();
+        if (!Array.isArray(data)) return;
+        setParticipants(
+          data.map((p, i) => ({
+            id: `live_${p.name}_${i}`,
+            name: p.name,
+            role: (p.role === "office" ? "office" : "field") as "field" | "office",
+            position: Array.isArray(p.position) && p.position.length === 2
+              ? (p.position as [number, number])
+              : undefined,
+          }))
+        );
+      } catch {
+        // keep existing participants on network error
+      }
+    };
+
+    fetchParticipants();
+    const id = setInterval(fetchParticipants, 10_000);
+    return () => clearInterval(id);
+  }, []);
 
   // Hydrate from localStorage on mount
   useEffect(() => {
