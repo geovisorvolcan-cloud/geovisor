@@ -27,6 +27,7 @@ export default function MapPage() {
   const { sharing, error: geoError, startSharing, stopSharing } = useGeolocation();
   const [clock, setClock] = useState("");
   const [sosSent, setSosSent] = useState(false);
+  const [mobileExpanded, setMobileExpanded] = useState(false);
   const [showParticipants, setShowParticipants] = useState(true);
   const [hiddenParticipantIds, setHiddenParticipantIds] = useState<Set<string>>(new Set());
   const [hiddenPointTypes, setHiddenPointTypes] = useState<Set<DynType>>(new Set());
@@ -81,7 +82,7 @@ export default function MapPage() {
             Geofield camp P8091
           </div>
           <div className="absolute right-4 mt-3 flex gap-2 pointer-events-auto items-center">
-            <span className="text-xs text-gray-500 font-mono bg-white/70 px-2 py-1 rounded-full">
+            <span className="hidden md:inline text-xs text-gray-500 font-mono bg-white/70 px-2 py-1 rounded-full">
               Cerro Machin, Tolima, Colombia
             </span>
             {ready && isAdmin ? (
@@ -128,7 +129,7 @@ export default function MapPage() {
         </div>
 
         <div
-          className="absolute top-14 left-4 z-10 flex flex-col gap-3 w-72"
+          className="hidden md:flex absolute top-14 left-4 z-10 flex-col gap-3 w-72"
           style={{ maxHeight: "calc(100vh - 6rem - 10rem)", overflowY: "auto" }}
         >
           <div
@@ -172,7 +173,7 @@ export default function MapPage() {
         </div>
 
         <div
-          className="absolute bottom-6 left-4 z-10 flex w-72 flex-col gap-3 overflow-y-auto"
+          className="hidden md:flex absolute bottom-6 left-4 z-10 w-72 flex-col gap-3 overflow-y-auto"
           style={{ maxHeight: "calc(100vh - 6rem)" }}
         >
           <div className="bg-white rounded-xl shadow-lg p-4">
@@ -217,7 +218,101 @@ export default function MapPage() {
         </div>
       </div>
 
-      <aside className="w-80 flex-shrink-0 bg-white border-l border-gray-200 overflow-y-auto flex flex-col">
+      {/* ── Mobile bottom panel ─────────────────────────────────── */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 z-20 pointer-events-none">
+        <div className="pointer-events-auto bg-white rounded-t-2xl shadow-2xl border-t border-gray-100">
+          {/* Drag handle + expand toggle */}
+          <button
+            onClick={() => setMobileExpanded((v) => !v)}
+            className="w-full flex flex-col items-center pt-2.5 pb-1"
+          >
+            <div className="w-10 h-1 bg-gray-300 rounded-full mb-1.5" />
+            <span className="text-[11px] text-gray-400 font-medium">
+              {mobileExpanded ? "Ocultar ▼" : "Ver más ▲"}
+            </span>
+          </button>
+
+          <div
+            className="overflow-y-auto px-4 pb-6 space-y-3"
+            style={{ maxHeight: mobileExpanded ? "70vh" : "auto" }}
+          >
+            {/* Expandable content */}
+            {mobileExpanded && (
+              <>
+                {/* Volcano Alert */}
+                <div
+                  className="bg-white rounded-xl border-l-4 p-4 shadow-sm"
+                  style={{ borderColor: alertInfo.color }}
+                >
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <span className="text-base">⚠</span>
+                    <span className="font-bold text-gray-900 text-sm">Volcano Alert</span>
+                    <span
+                      className="ml-auto text-white text-xs font-bold px-3 py-0.5 rounded-lg"
+                      style={{ backgroundColor: alertInfo.color }}
+                    >
+                      {alertInfo.label}
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-800 font-semibold">{alertInfo.status}</p>
+                  <p className="text-xs text-gray-500 mt-1 leading-relaxed">{alertInfo.description}</p>
+                </div>
+
+                {/* Participants */}
+                <div className="bg-white rounded-xl border border-gray-100 p-4 shadow-sm">
+                  <p className="text-sm font-semibold text-gray-700 mb-2">Field participants</p>
+                  <div className="flex flex-wrap gap-1.5 mb-3">
+                    {fieldParticipants.length === 0 && <span className="text-xs text-gray-400">None</span>}
+                    {fieldParticipants.map((p) => (
+                      <span key={p.id} className="bg-red-500 text-white text-xs font-semibold px-3 py-1 rounded-full">{p.name}</span>
+                    ))}
+                  </div>
+                  <p className="text-sm font-semibold text-gray-700 mb-2">Office participants</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {officeParticipants.length === 0 && <span className="text-xs text-gray-400">None</span>}
+                    {officeParticipants.map((p) => (
+                      <span key={p.id} className="bg-blue-500 text-white text-xs font-semibold px-3 py-1 rounded-full">{p.name}</span>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Map Legend */}
+                <div className="bg-white rounded-xl border border-gray-100 p-4 shadow-sm">
+                  <p className="font-bold text-gray-900 text-sm mb-2">Map Legend</p>
+                  <div className="flex items-center gap-2 mb-1.5"><VolcanoMiniIcon /><span className="text-xs text-gray-700">Cerro Machin Volcano</span></div>
+                  <div className="flex items-center gap-2 mb-1.5"><ParticipantMiniIcon color="#EF4444" /><span className="text-xs text-gray-700">Field Participant</span></div>
+                  <div className="flex items-center gap-2 mb-2"><ParticipantMiniIcon color="#3B82F6" /><span className="text-xs text-gray-700">Office Participant</span></div>
+                  <p className="text-xs font-semibold text-gray-500 mb-1.5">Data Points:</p>
+                  <LegendPoint type="social" label="Social and environmental characterization" />
+                  <LegendPoint type="sgi_magnetometry" label="SGI GEO (Magnetometry)" />
+                  <LegendPoint type="sgi_gravimetry" label="SGI GEO (Gravimetry)" />
+                  <LegendPoint type="gidco" label="GIDCO (Magnetotelluric)" />
+                  <LegendPoint type="uis_geophysics" label="UIS Geophysics Team (Magnetotelluric)" />
+                </div>
+              </>
+            )}
+
+            {/* Always visible: SOS + Location */}
+            <AccessCard
+              ready={ready}
+              isAuthenticated={isAuthenticated}
+              isAdmin={Boolean(isAdmin)}
+              isRegisteredUser={Boolean(isRegisteredUser)}
+              userName={user?.name ?? ""}
+              sosSent={sosSent}
+              sharing={sharing}
+              geoError={geoError}
+              onRegister={() => router.push("/register")}
+              onSignIn={() => router.push("/")}
+              onOpenAdmin={() => router.push("/admin")}
+              onSendSos={handleSendSos}
+              onToggleSharing={() => (sharing ? stopSharing() : startSharing())}
+            />
+          </div>
+        </div>
+      </div>
+
+      <aside className="hidden md:flex w-80 flex-shrink-0 bg-white border-l border-gray-200 overflow-y-auto flex-col">
         {/* Participants header with map toggle */}
         <div className="px-5 pt-5 pb-3 border-b border-gray-100 flex items-center justify-between">
           <p className="text-sm font-semibold text-gray-700">Participants</p>
