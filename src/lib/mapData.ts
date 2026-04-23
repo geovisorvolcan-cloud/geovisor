@@ -65,7 +65,34 @@ export interface Participant {
   location: string;
 }
 
-export const DATA_POINTS: DataPoint[] = [];
+export const DATA_POINTS: DataPoint[] = [
+  // ── GRAVIMETRIA ──────────────────────────────────────────────────────────
+  { id: "GRAV01", position: [4.488373, -75.378695], type: "sgi_gravimetry", label: "GRAV01" },
+  { id: "GRAV02", position: [4.486972, -75.381486], type: "sgi_gravimetry", label: "GRAV02" },
+  { id: "GRAV03", position: [4.482683, -75.382333], type: "sgi_gravimetry", label: "GRAV03" },
+  { id: "GRAV04", position: [4.489064, -75.389773], type: "sgi_gravimetry", label: "GRAV04" },
+  { id: "GRAV05", position: [4.491753, -75.394164], type: "sgi_gravimetry", label: "GRAV05" },
+  { id: "GRAV06", position: [4.488734, -75.394672], type: "sgi_gravimetry", label: "GRAV06" },
+  { id: "GRAV07", position: [4.487487, -75.396565], type: "sgi_gravimetry", label: "GRAV07" },
+  { id: "GRAV08", position: [4.478997, -75.394072], type: "sgi_gravimetry", label: "GRAV08" },
+  { id: "GRAV09", position: [4.473522, -75.389281], type: "sgi_gravimetry", label: "GRAV09" },
+  { id: "GRAV10", position: [4.471995, -75.388759], type: "sgi_gravimetry", label: "GRAV10" },
+  { id: "GRAV11", position: [4.446883, -75.384339], type: "sgi_gravimetry", label: "GRAV11" },
+  { id: "GRAV12", position: [4.472608, -75.380261], type: "sgi_gravimetry", label: "GRAV12" },
+  { id: "GRAV13", position: [4.474810, -75.376263], type: "sgi_gravimetry", label: "GRAV13" },
+  { id: "GRAV14", position: [4.496579, -75.400240], type: "sgi_gravimetry", label: "GRAV14" },
+  { id: "GRAV15", position: [4.499696, -75.400997], type: "sgi_gravimetry", label: "GRAV15" },
+  { id: "GRAV16", position: [4.501244, -75.395549], type: "sgi_gravimetry", label: "GRAV16" },
+  { id: "GRAV17", position: [4.505535, -75.396194], type: "sgi_gravimetry", label: "GRAV17" },
+  { id: "GRAV18", position: [4.505524, -75.400724], type: "sgi_gravimetry", label: "GRAV18" },
+  { id: "GRAV20", position: [4.478377, -75.365305], type: "sgi_gravimetry", label: "GRAV20" },
+  { id: "GRAV21", position: [4.480465, -75.366347], type: "sgi_gravimetry", label: "GRAV21" },
+  { id: "GRAV22", position: [4.482235, -75.363010], type: "sgi_gravimetry", label: "GRAV22" },
+  { id: "GRAV23", position: [4.487070, -75.366749], type: "sgi_gravimetry", label: "GRAV23" },
+  { id: "GRAV24", position: [4.485507, -75.371391], type: "sgi_gravimetry", label: "GRAV24" },
+  { id: "GRAV28", position: [4.456458, -75.354333], type: "sgi_gravimetry", label: "GRAV28" },
+  { id: "GRAV32", position: [4.521918, -75.410110], type: "sgi_gravimetry", label: "GRAV32" },
+];
 
 export const PARTICIPANTS: Participant[] = [
   {

@@ -265,6 +265,12 @@ export default function AdminPage() {
               Cerro Machín, Tolima, Colombia
             </span>
             <button
+              onClick={() => router.push("/profile")}
+              className="px-3 py-1.5 bg-white/80 backdrop-blur rounded-full shadow text-xs font-medium text-gray-600 hover:bg-white transition"
+            >
+              Profile
+            </button>
+            <button
               onClick={() => { logout(); router.push("/"); }}
               className="px-3 py-1.5 bg-white/80 backdrop-blur rounded-full shadow text-xs font-medium text-gray-600 hover:bg-white transition"
             >

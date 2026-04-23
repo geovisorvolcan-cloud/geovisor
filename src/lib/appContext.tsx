@@ -8,7 +8,7 @@ import React, {
   useCallback,
   ReactNode,
 } from "react";
-import { PROGRESS_DATA, DEFAULT_VOLCANO_ALERT_LEVEL, type VolcanoAlertLevel } from "@/lib/mapData";
+import { PROGRESS_DATA, DATA_POINTS, DEFAULT_VOLCANO_ALERT_LEVEL, type VolcanoAlertLevel } from "@/lib/mapData";
 export type { VolcanoAlertLevel };
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5000";
@@ -96,6 +96,15 @@ const STORAGE_KEY_PROGRESS_TOTALS = "geovisor_progress_totals";
 const STORAGE_KEY_CAMP_PARTICIPANTS = "geovisor_camp_participants";
 const STORAGE_KEY_VOLCANO_ALERT = "geovisor_volcano_alert";
 
+const SEED_DYNAMIC_POINTS: DynamicPoint[] = DATA_POINTS.map((dp) => ({
+  id: dp.id,
+  type: dp.type as DynamicPointType,
+  name: dp.label ?? dp.id,
+  position: dp.position,
+  description: dp.description,
+  addedAt: "2025-01-01T00:00:00.000Z",
+}));
+
 const DEFAULT_PARTICIPANTS: ParticipantEntry[] = [];
 
 const DEFAULT_PROGRESS_TOTALS: ProgressTotals = PROGRESS_DATA.reduce(
@@ -117,7 +126,7 @@ const VALID_ALERT_LEVELS: VolcanoAlertLevel[] = ["green", "yellow", "orange", "r
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const [volcanoAlertLevel, setVolcanoAlertLevelState] = useState<VolcanoAlertLevel>(DEFAULT_VOLCANO_ALERT_LEVEL);
-  const [dynamicPoints, setDynamicPoints] = useState<DynamicPoint[]>([]);
+  const [dynamicPoints, setDynamicPoints] = useState<DynamicPoint[]>(SEED_DYNAMIC_POINTS);
   const [participants, setParticipants] =
     useState<ParticipantEntry[]>(DEFAULT_PARTICIPANTS);
   const [progressTotals, setProgressTotalsState] = useState<ProgressTotals>(
