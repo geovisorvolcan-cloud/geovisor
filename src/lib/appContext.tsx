@@ -179,7 +179,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const raw = localStorage.getItem(STORAGE_KEY_POINTS);
       if (raw) {
         const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed)) setDynamicPoints(parsed);
+        if (Array.isArray(parsed)) {
+          // Always keep seed points up-to-date; preserve any user-added points
+          const seedIds = new Set(SEED_DYNAMIC_POINTS.map((p) => p.id));
+          const userAdded = parsed.filter((p: DynamicPoint) => !seedIds.has(p.id));
+          setDynamicPoints([...SEED_DYNAMIC_POINTS, ...userAdded]);
+        }
       }
       const rawP = localStorage.getItem(STORAGE_KEY_PARTICIPANTS);
       if (rawP) {

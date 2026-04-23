@@ -66,7 +66,7 @@ export interface Participant {
 }
 
 export const DATA_POINTS: DataPoint[] = [
-  // ── GRAVIMETRIA ──────────────────────────────────────────────────────────
+  // ── GRAVIMETRIA (SGI GEO – Gravimetry) ───────────────────────────────────
   { id: "GRAV01", position: [4.488373, -75.378695], type: "sgi_gravimetry", label: "GRAV01" },
   { id: "GRAV02", position: [4.486972, -75.381486], type: "sgi_gravimetry", label: "GRAV02" },
   { id: "GRAV03", position: [4.482683, -75.382333], type: "sgi_gravimetry", label: "GRAV03" },
@@ -92,6 +92,40 @@ export const DATA_POINTS: DataPoint[] = [
   { id: "GRAV24", position: [4.485507, -75.371391], type: "sgi_gravimetry", label: "GRAV24" },
   { id: "GRAV28", position: [4.456458, -75.354333], type: "sgi_gravimetry", label: "GRAV28" },
   { id: "GRAV32", position: [4.521918, -75.410110], type: "sgi_gravimetry", label: "GRAV32" },
+
+  // ── MAGNETOMETRIA (SGI GEO – Magnetometry) ───────────────────────────────
+  { id: "MAG01", position: [4.488373, -75.378695], type: "sgi_magnetometry", label: "MAG01", description: "Vía Hostal Termales del Machín - Ascenso hacia el Cráter del VCM. Finca La Secreta, sobre los potreros de la entrada a la finca." },
+  { id: "MAG02", position: [4.486972, -75.381486], type: "sgi_magnetometry", label: "MAG02", description: "Vía Hostal Termales del Machín - Cráter del VCM. Finca La Secreta, inicio del camino de piedras." },
+  { id: "MAG03", position: [4.482683, -75.382333], type: "sgi_magnetometry", label: "MAG03", description: "Vía Hostal Termales del Machín - Cráter del VCM. Finca La Secreta, al llegar a la finca, bajar por el camino de piedras hasta llegar al punto." },
+  { id: "MAG04", position: [4.491753, -75.394164], type: "sgi_magnetometry", label: "MAG04", description: "Desde Hostal Termales del Machín subiendo hacia el borde del cráter por el NE." },
+  { id: "MAG05", position: [4.487487, -75.396565], type: "sgi_magnetometry", label: "MAG05", description: "Vía Hostal Termales del Machín - Toche, Finca Machín 5, a 10 metros de la Escuela Machín." },
+  { id: "MAG06", position: [4.478997, -75.394072], type: "sgi_magnetometry", label: "MAG06", description: "Desde Hostal Termales del Machín subiendo hacia el borde del cráter por el NE." },
+  { id: "MAG07", position: [4.471995, -75.388759], type: "sgi_magnetometry", label: "MAG07", description: "Sobre la vía Hostal Termales del Machín - Tapias. Finca El Jardín." },
+  { id: "MAG08", position: [4.496579, -75.400240], type: "sgi_magnetometry", label: "MAG08", description: "Vía Hostal Termales del Machín-Toche, Finca El Porvenir. Presencia de invernaderos y cultivos de tomate y frijol. Se permite acceso con el vehículo dentro de la finca." },
+  { id: "MAG09", position: [4.499696, -75.400997], type: "sgi_magnetometry", label: "MAG09", description: "Vía Hostal Termales del Machín-Toche, Finca El Porvenir. Presencia de invernaderos y cultivos de tomate y frijol. Se permite acceso con el vehículo dentro de la finca." },
+  { id: "MAG10", position: [4.501244, -75.395549], type: "sgi_magnetometry", label: "MAG10", description: "Vía Hostal Termales del Machín-Toche. Finca El Porvenir." },
+  { id: "MAG11", position: [4.505535, -75.396194], type: "sgi_magnetometry", label: "MAG11", description: "Vía Hostal Termales del Machín-Toche. Finca El Vergel." },
+  { id: "MAG12", position: [4.505524, -75.400724], type: "sgi_magnetometry", label: "MAG12", description: "Vía Hostal Termales del Machín-Toche. Finca El Vergel. Presencia de cultivos; el punto se ubicó cerca a la vía debido a que no se podía acceder." },
+  { id: "MAG14", position: [4.478377, -75.365305], type: "sgi_magnetometry", label: "MAG14", description: "Vía Hostal Termales de Machín - Ascenso hacia el Cráter del VCM. Llegada a la laguna y ascenso por la izquierda hacia la Finca La Aurora. En la Finca La Aurora tomar el sendero hacia el SE hasta llegar a la Finca El Silencio." },
+  { id: "MAG15", position: [4.480465, -75.366347], type: "sgi_magnetometry", label: "MAG15", description: "Vía Hostal Termales de Machín - Ascenso hacia el Cráter del VCM. Llegada a la laguna y ascenso por la izquierda hacia la Finca La Aurora. En la Finca La Aurora tomar el sendero hacia el SE hasta llegar a la Finca El Silencio." },
+  { id: "MAG16", position: [4.482238, -75.363010], type: "sgi_magnetometry", label: "MAG16", description: "Vía Hostal Termales de Machín - Ascenso hacia el cráter. Llegada a la laguna y ascenso por la izquierda hacia la Finca La Aurora. En la Finca La Aurora tomar el sendero hacia el SE hasta llegar a la Finca El Silencio." },
+  { id: "MAG39", position: [4.515438, -75.405225], type: "sgi_magnetometry", label: "MAG39", description: "Vía Hostal Termales del Machín-Toche. Finca La Aurora 2." },
+  { id: "MAG41", position: [4.521918, -75.410110], type: "sgi_magnetometry", label: "MAG41", description: "Vía Tapias-Toche, al llegar a Toche cruzar el puente colgante del río Toche y ubicar la primera finca. Finca La Esperanza. El punto se ubicó por el sendero de piedras al lado derecho (NE) de la finca." },
+
+  // ── MAGNETOTELURICA – UIS Geophysics Team ────────────────────────────────
+  { id: "MT01-UIS", position: [4.487113, -75.378936], type: "uis_geophysics", label: "MT01-UIS", description: "Vía Hostal Termales del Machín - Cráter del VCM. Finca La Secreta, sobre los potreros de la entrada a la finca. Se presentan potreros con vacas cerca al punto y cercas eléctricas; solicitar desactivarlas en la adquisición." },
+  { id: "MT02-UIS", position: [4.481066, -75.382456], type: "uis_geophysics", label: "MT02-UIS", description: "Vía Hostal Termales del Machín - Cráter del VCM. Finca La Secreta, al llegar a la finca, bajar por el camino de piedras hasta llegar al punto. Se presentan potreros con vacas y cercas eléctricas; solicitar desactivarlas en la adquisición." },
+  { id: "MT03-UIS", position: [4.487930, -75.396421], type: "uis_geophysics", label: "MT03-UIS", description: "Vía Hostal Termales del Machín - Toche, Finca Machín 5, a 10 metros de la Escuela Machín. Se presentan potreros con vacas y cercas eléctricas; solicitar desactivarlas en la adquisición." },
+  { id: "MT04-UIS", position: [4.472278, -75.388645], type: "uis_geophysics", label: "MT04-UIS", description: "Sobre la vía Hostal Termales del Machín - Tapias. Finca El Jardín. Pendiente mayor a 30°, presencia de redes eléctricas." },
+  { id: "MT05-UIS", position: [4.467749, -75.390470], type: "uis_geophysics", label: "MT05-UIS", description: "Vía Hostal Termales del Machín - Tapias, primer desvío a la derecha luego segundo desvío a la derecha. Finca El Jardín. Camino entre cultivos de plátano y café hasta quebrada seca, luego ascenso a la ladera. Pendiente mayor a 30°. Presencia de pringamoza." },
+  { id: "MT06-UIS", position: [4.473274, -75.385070], type: "uis_geophysics", label: "MT06-UIS", description: "Vía Hostal Termales del Machín - Tapias, Finca Buenavista. Se presentan cercas eléctricas." },
+  { id: "MT07-UIS", position: [4.468924, -75.384584], type: "uis_geophysics", label: "MT07-UIS", description: "Vía Hostal Termales del Machín - Tapias, Finca Buenavista. Cercas eléctricas, pendiente ~20°. Calcular longitud real del dipolo." },
+  { id: "MT08-UIS", position: [4.499465, -75.401057], type: "uis_geophysics", label: "MT08-UIS", description: "Vía Hostal Termales del Machín-Toche, Finca El Porvenir. Invernaderos y cultivos de tomate y frijol; acceso vehicular permitido dentro de la finca. Presencia de cercas eléctricas." },
+  { id: "MT10-UIS", position: [4.470896, -75.374689], type: "uis_geophysics", label: "MT10-UIS", description: "Vía Hostal Faldas del Machín-Tapias, sendero marcado desde los invernaderos hasta la Finca del Señor Carlos. Pendiente mayor a 20°. Calcular longitud real del dipolo." },
+
+  // ── MAGNETOTELURICA – GIDCO ──────────────────────────────────────────────
+  { id: "MT01-GIDCO", position: [4.507784, -75.402035], type: "gidco", label: "MT01-GIDCO", description: "Vía Hostal Termales del Machín-Toche, Finca El Vergel. Presencia de cercas eléctricas y potreros de vacas." },
+  { id: "MT04-GIDCO", position: [4.482116, -75.367748], type: "gidco", label: "MT04-GIDCO", description: "Vía Hostal Termales de Machín - Ascenso hacia el cráter. Llegada a la laguna y ascenso por la izquierda hacia la Finca La Aurora. En la Finca La Aurora tomar el sendero hacia el SE. Pendiente mayor a 20°. Calcular longitud real del dipolo." },
 ];
 
 export const PARTICIPANTS: Participant[] = [
