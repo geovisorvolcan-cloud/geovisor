@@ -147,25 +147,25 @@ export const PARTICIPANTS: Participant[] = [
 
 export const PROGRESS_DATA = [
   {
-    label: "SGI GEO Magnetometry progress",
+    label: "SGI GEO Magnetometry characterization",
     total: 50,
     color: "#D946EF",
     teamType: "sgi_magnetometry" as const,
   },
   {
-    label: "SGI GEO Gravimetry progress",
+    label: "SGI GEO Gravimetry characterization",
     total: 50,
     color: "#EC4899",
     teamType: "sgi_gravimetry" as const,
   },
   {
-    label: "GIDCO progress",
+    label: "GIDCO characterization",
     total: 20,
     color: "#22C55E",
     teamType: "gidco" as const,
   },
   {
-    label: "UIS Geophysics Team progress",
+    label: "UIS Geophysics Team characterization",
     total: 10,
     color: "#F97316",
     teamType: "uis_geophysics" as const,

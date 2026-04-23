@@ -19,7 +19,7 @@ type LegendPointType =
 
 export default function MapPage() {
   const router = useRouter();
-  const { dynamicPoints, participants, progressTotals, volcanoAlertLevel } = useAppContext();
+  const { dynamicPoints, participants, progressTotals, volcanoAlertLevel, updateDynamicPoint } = useAppContext();
   type DynType = (typeof dynamicPoints)[number]["type"];
   const alertInfo = VOLCANO_ALERT_LEVELS[volcanoAlertLevel];
   const { ready, isAuthenticated, user, logout } = useAuth();
@@ -214,6 +214,7 @@ export default function MapPage() {
             hiddenPointTypes={hiddenPointTypes as Set<import("@/lib/appContext").DynamicPointType>}
             participantEntries={showParticipants ? participants.filter((p) => !hiddenParticipantIds.has(p.id)) : []}
             volcanoAlertLevel={volcanoAlertLevel}
+            onToggleAcquired={(id, acquired) => updateDynamicPoint(id, { acquired })}
           />
         </div>
       </div>
@@ -418,7 +419,15 @@ export default function MapPage() {
           </div>
         </div>
 
-        <div className="p-5 space-y-5">
+        {/* ── Characterization section ── */}
+        <div className="p-5 border-b border-gray-200 space-y-4">
+          <p className="text-xs font-bold text-gray-700 uppercase tracking-wide">Characterization</p>
+          <AcqProgressBar
+            label="Total Characterization"
+            color="#3B82F6"
+            acquired={dynamicPoints.filter((p) => !p.acquired).length}
+            total={PROGRESS_DATA.reduce((sum, item) => sum + (progressTotals[item.label] ?? item.total), 0)}
+          />
           {PROGRESS_DATA.map((item) => {
             const current = dynamicPoints.filter((p) => p.type === item.teamType && !p.acquired).length;
             const total = progressTotals[item.label] ?? item.total;
@@ -434,13 +443,13 @@ export default function MapPage() {
           })}
         </div>
 
-        {/* Acquisition & Characterization progress */}
-        <div className="p-5 border-t border-gray-100 space-y-3 flex-1">
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Acquisition &amp; Characterization</p>
+        {/* ── Acquisition section ── */}
+        <div className="p-5 space-y-3 flex-1">
+          <p className="text-xs font-bold text-gray-700 uppercase tracking-wide">Acquisition</p>
           <AcqProgressBar
-            label="Characterization"
-            color="#3B82F6"
-            acquired={dynamicPoints.filter((p) => !p.acquired).length}
+            label="Total Acquisition"
+            color="#10B981"
+            acquired={dynamicPoints.filter((p) => p.acquired).length}
             total={PROGRESS_DATA.reduce((sum, item) => sum + (progressTotals[item.label] ?? item.total), 0)}
           />
           <AcqProgressBar
@@ -681,21 +690,21 @@ function ProgressSummaryItem({
 
   return (
     <div>
-      <p className="text-sm font-semibold text-gray-800 mb-2">{label}</p>
-      <div className="relative w-full bg-gray-200 rounded-full h-5 overflow-hidden">
+      <p className="text-xs font-medium text-gray-700 mb-1">{label}</p>
+      <div className="relative w-full bg-gray-200 rounded-full h-4 overflow-hidden">
         <div
-          className="h-full rounded-full flex items-center justify-end pr-2"
+          className="h-full rounded-full flex items-center justify-end pr-1.5 transition-all"
           style={{
             width: `${fillWidth}%`,
             backgroundColor: color,
           }}
         >
-          {percent >= 10 ? (
-            <span className="text-white text-xs font-bold">{percent}%</span>
+          {percent >= 15 ? (
+            <span className="text-white text-[10px] font-bold">{percent}%</span>
           ) : null}
         </div>
       </div>
-      <div className="flex justify-between text-xs text-gray-500 mt-1">
+      <div className="flex justify-between text-[10px] text-gray-400 mt-0.5">
         <span>
           {boundedCurrent} / {total} points
         </span>

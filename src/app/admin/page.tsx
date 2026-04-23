@@ -494,6 +494,7 @@ export default function AdminPage() {
             hiddenPointTypes={hiddenPointTypes}
             participantEntries={showParticipants ? mapParticipants.filter((p) => !hiddenParticipantIds.has(p.id)) : []}
             volcanoAlertLevel={volcanoAlertLevel}
+            onToggleAcquired={(id, acquired) => updateDynamicPoint(id, { acquired })}
           />
         </div>
       </div>
@@ -630,8 +631,15 @@ export default function AdminPage() {
           </div>
         </div>
 
-        {/* Progress bars */}
-        <div className="p-5 space-y-5">
+        {/* ── Characterization section ── */}
+        <div className="p-5 border-b border-gray-200 space-y-4">
+          <p className="text-xs font-bold text-gray-700 uppercase tracking-wide">Characterization</p>
+          <AcqProgressBar
+            label="Total Characterization"
+            color="#3B82F6"
+            acquired={dynamicPoints.filter((p) => !p.acquired).length}
+            total={PROGRESS_DATA.reduce((sum, item) => sum + (progressTotals[item.label] ?? item.total), 0)}
+          />
           {PROGRESS_DATA.map((item) => {
             const current = dynamicPoints.filter((p) => p.type === item.teamType && !p.acquired).length;
             const total = progressTotals[item.label] ?? item.total;
@@ -652,39 +660,46 @@ export default function AdminPage() {
           })}
         </div>
 
-        {/* Acquisition & Characterization progress */}
-        <div className="p-5 border-t border-gray-100 space-y-3 flex-1">
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Acquisition &amp; Characterization</p>
-          <AcqProgressBar
-            label="Characterization"
-            color="#3B82F6"
-            acquired={dynamicPoints.filter((p) => !p.acquired).length}
-            total={PROGRESS_DATA.reduce((sum, item) => sum + (progressTotals[item.label] ?? item.total), 0)}
-          />
-          <AcqProgressBar
-            label="SGI GEO Acquisition – GRAV"
-            color="#EC4899"
-            acquired={dynamicPoints.filter((p) => p.type === "sgi_gravimetry" && p.acquired).length}
-            total={dynamicPoints.filter((p) => p.type === "sgi_gravimetry").length}
-          />
-          <AcqProgressBar
-            label="SGI GEO Acquisition – MAG"
-            color="#D946EF"
-            acquired={dynamicPoints.filter((p) => p.type === "sgi_magnetometry" && p.acquired).length}
-            total={dynamicPoints.filter((p) => p.type === "sgi_magnetometry").length}
-          />
-          <AcqProgressBar
-            label="MT Acquisition – UIS"
-            color="#F97316"
-            acquired={dynamicPoints.filter((p) => p.type === "uis_geophysics" && p.acquired).length}
-            total={dynamicPoints.filter((p) => p.type === "uis_geophysics").length}
-          />
-          <AcqProgressBar
-            label="MT Acquisition – GIDCO"
-            color="#22C55E"
-            acquired={dynamicPoints.filter((p) => p.type === "gidco" && p.acquired).length}
-            total={dynamicPoints.filter((p) => p.type === "gidco").length}
-          />
+        {/* ── Acquisition section ── */}
+        <div className="p-5 space-y-3 flex-1">
+          {(() => {
+            const plannedTotal = PROGRESS_DATA.reduce((sum, item) => sum + (progressTotals[item.label] ?? item.total), 0);
+            return (
+              <>
+                <p className="text-xs font-bold text-gray-700 uppercase tracking-wide">Acquisition</p>
+                <AcqProgressBar
+                  label="Total Acquisition"
+                  color="#10B981"
+                  acquired={dynamicPoints.filter((p) => p.acquired).length}
+                  total={plannedTotal}
+                />
+                <AcqProgressBar
+                  label="SGI GEO Acquisition – GRAV"
+                  color="#EC4899"
+                  acquired={dynamicPoints.filter((p) => p.type === "sgi_gravimetry" && p.acquired).length}
+                  total={dynamicPoints.filter((p) => p.type === "sgi_gravimetry").length}
+                />
+                <AcqProgressBar
+                  label="SGI GEO Acquisition – MAG"
+                  color="#D946EF"
+                  acquired={dynamicPoints.filter((p) => p.type === "sgi_magnetometry" && p.acquired).length}
+                  total={dynamicPoints.filter((p) => p.type === "sgi_magnetometry").length}
+                />
+                <AcqProgressBar
+                  label="MT Acquisition – UIS"
+                  color="#F97316"
+                  acquired={dynamicPoints.filter((p) => p.type === "uis_geophysics" && p.acquired).length}
+                  total={dynamicPoints.filter((p) => p.type === "uis_geophysics").length}
+                />
+                <AcqProgressBar
+                  label="MT Acquisition – GIDCO"
+                  color="#22C55E"
+                  acquired={dynamicPoints.filter((p) => p.type === "gidco" && p.acquired).length}
+                  total={dynamicPoints.filter((p) => p.type === "gidco").length}
+                />
+              </>
+            );
+          })()}
         </div>
 
         {/* Footer action */}

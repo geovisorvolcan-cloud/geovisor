@@ -161,6 +161,7 @@ export interface MapViewProps {
   onMapClick?: (position: [number, number]) => void;
   isPickingLocation?: boolean;
   volcanoAlertLevel?: VolcanoAlertLevel;
+  onToggleAcquired?: (id: string, acquired: boolean) => void;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -173,6 +174,7 @@ export default function MapView({
   onMapClick,
   isPickingLocation = false,
   volcanoAlertLevel = "yellow",
+  onToggleAcquired,
 }: MapViewProps) {
   const mapRef = useRef<L.Map | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -257,25 +259,54 @@ export default function MapView({
       const added = new Date(pt.addedAt).toLocaleString();
       const [latitude, longitude] = pt.position;
 
+      const acquiredColor = pt.acquired ? "#16a34a" : "#6b7280";
+      const acquiredLabel = pt.acquired ? "✓ Acquired" : "○ Not acquired";
+
       const popup = `
-        <div style="font-size:12px;padding:8px 10px;min-width:150px;">
-          <div style="font-weight:700;font-size:13px;margin-bottom:3px;">${escapeHtml(pt.name)}</div>
+        <div style="font-size:12px;padding:8px 10px;min-width:170px;position:relative;">
+          <button data-close="1" style="position:absolute;top:2px;right:2px;width:18px;height:18px;border:none;background:none;cursor:pointer;font-size:14px;color:#9ca3af;line-height:1;" title="Close">✕</button>
+          <div style="font-weight:700;font-size:13px;margin-bottom:3px;padding-right:18px;">${escapeHtml(pt.name)}</div>
           <div style="color:#6b7280;margin-bottom:4px;">${escapeHtml(typeLabel)}</div>
           <div style="color:#374151;margin-bottom:4px;">
             Lat ${formatCoordinate(latitude)}, Lng ${formatCoordinate(longitude)}
           </div>
-          ${
-            pt.description
-              ? `<div style="color:#374151;margin-bottom:4px;">${escapeHtml(pt.description)}</div>`
-              : ""
-          }
-          <div style="color:#9ca3af;font-size:10px;">Added: ${added}</div>
+          ${pt.description ? `<div style="color:#374151;margin-bottom:6px;font-size:11px;">${escapeHtml(pt.description)}</div>` : ""}
+          ${onToggleAcquired ? `
+          <button
+            data-point-id="${escapeHtml(pt.id)}"
+            data-acquired="${pt.acquired ? "1" : "0"}"
+            style="margin-top:4px;width:100%;padding:4px 8px;border-radius:6px;border:1.5px solid ${acquiredColor};
+                   background:${pt.acquired ? "#dcfce7" : "#f3f4f6"};color:${acquiredColor};
+                   font-size:11px;font-weight:700;cursor:pointer;"
+          >${acquiredLabel}</button>` : `
+          <div style="margin-top:4px;font-size:11px;font-weight:600;color:${acquiredColor};">${acquiredLabel}</div>`}
+          <div style="color:#9ca3af;font-size:10px;margin-top:4px;">Added: ${added}</div>
         </div>`;
 
-      const marker = L.marker(pt.position, { icon }).addTo(map).bindPopup(popup);
+      const marker = L.marker(pt.position, { icon }).addTo(map)
+        .bindPopup(popup, { autoClose: false, closeOnClick: false, closeButton: false });
+
+      marker.on("popupopen", () => {
+        const el = marker.getPopup()?.getElement();
+        if (!el) return;
+
+        const closeBtn = el.querySelector<HTMLButtonElement>("[data-close]");
+        if (closeBtn) closeBtn.onclick = () => marker.closePopup();
+
+        if (onToggleAcquired) {
+          const acqBtn = el.querySelector<HTMLButtonElement>("[data-point-id]");
+          if (acqBtn) {
+            acqBtn.onclick = () => {
+              const newAcquired = acqBtn.dataset.acquired !== "1";
+              onToggleAcquired(pt.id, newAcquired);
+            };
+          }
+        }
+      });
+
       dynMarkersRef.current.push(marker);
     });
-  }, [extraPoints, hiddenPointTypes]);
+  }, [extraPoints, hiddenPointTypes, onToggleAcquired]);
 
   // ── Participant markers ──────────────────────────────────────────────────
   useEffect(() => {

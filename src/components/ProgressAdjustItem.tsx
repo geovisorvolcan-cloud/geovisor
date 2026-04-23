@@ -83,18 +83,18 @@ export default function ProgressAdjustItem({
         onClick={() => setExpanded((v) => !v)}
         className="w-full text-left"
       >
-        <p className="text-sm font-semibold text-gray-800 mb-2">{label}</p>
-        <div className="relative w-full bg-gray-200 rounded-full h-5 overflow-hidden">
+        <p className="text-xs font-medium text-gray-700 mb-1">{label}</p>
+        <div className="relative w-full bg-gray-200 rounded-full h-4 overflow-hidden">
           <div
-            className="h-full rounded-full flex items-center justify-end pr-2 transition-all"
+            className="h-full rounded-full flex items-center justify-end pr-1.5 transition-all"
             style={{ width: `${fillWidth}%`, backgroundColor: color }}
           >
-            {pct >= 10 && (
-              <span className="text-white text-xs font-bold">{pct}%</span>
+            {pct >= 15 && (
+              <span className="text-white text-[10px] font-bold">{pct}%</span>
             )}
           </div>
         </div>
-        <div className="flex justify-between text-xs text-gray-500 mt-1">
+        <div className="flex justify-between text-[10px] text-gray-400 mt-0.5">
           <span>{boundedCurrent} / {total} points</span>
           <span>{pct}%</span>
         </div>
