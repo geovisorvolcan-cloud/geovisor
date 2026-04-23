@@ -16,7 +16,7 @@ interface ProgressAdjustItemProps {
   color: string;
   points: DynamicPoint[];
   onSetTotal: (newTotal: number) => void;
-  onUpdatePoint: (id: string, updates: Partial<Pick<DynamicPoint, "position" | "description">>) => void;
+  onUpdatePoint: (id: string, updates: Partial<Pick<DynamicPoint, "position" | "description" | "acquired">>) => void;
   onDeletePoint: (id: string) => void;
 }
 
@@ -39,6 +39,7 @@ export default function ProgressAdjustItem({
   const [editLat, setEditLat] = useState("");
   const [editLng, setEditLng] = useState("");
   const [editDesc, setEditDesc] = useState("");
+  const [editAcquired, setEditAcquired] = useState(false);
   const [editError, setEditError] = useState("");
 
   const boundedCurrent = Math.min(total, Math.max(0, current));
@@ -57,6 +58,7 @@ export default function ProgressAdjustItem({
     setEditLat(String(point.position[0]));
     setEditLng(String(point.position[1]));
     setEditDesc(point.description ?? "");
+    setEditAcquired(!!point.acquired);
     setEditError("");
   };
 
@@ -70,7 +72,7 @@ export default function ProgressAdjustItem({
     const lng = parseCoord(editLng, -180, 180);
     if (lat === null) { setEditError("Latitude must be between -90 and 90."); return; }
     if (lng === null) { setEditError("Longitude must be between -180 and 180."); return; }
-    onUpdatePoint(id, { position: [lat, lng], description: editDesc.trim() || undefined });
+    onUpdatePoint(id, { position: [lat, lng], description: editDesc.trim() || undefined, acquired: editAcquired });
     cancelEdit();
   };
 
@@ -178,6 +180,15 @@ export default function ProgressAdjustItem({
                             className="w-full resize-none text-xs border border-gray-200 rounded px-1.5 py-1 focus:outline-none focus:ring-1 focus:ring-orange-400"
                           />
                         </div>
+                        <label className="flex items-center gap-1.5 cursor-pointer pt-0.5">
+                          <input
+                            type="checkbox"
+                            checked={editAcquired}
+                            onChange={(e) => setEditAcquired(e.target.checked)}
+                            className="w-3.5 h-3.5 accent-green-500"
+                          />
+                          <span className="text-xs text-gray-600 font-medium">Acquired</span>
+                        </label>
                         {editError && <p className="text-red-500 text-[10px]">{editError}</p>}
                         <div className="flex gap-1.5 pt-0.5">
                           <button
@@ -213,6 +224,15 @@ export default function ProgressAdjustItem({
                           {point.description && (
                             <p className="text-[10px] text-gray-400 truncate">{point.description}</p>
                           )}
+                          <span
+                            className={`inline-block mt-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${
+                              point.acquired
+                                ? "bg-green-100 text-green-700"
+                                : "bg-blue-100 text-blue-600"
+                            }`}
+                          >
+                            {point.acquired ? "Acquired" : "Characterized"}
+                          </span>
                         </div>
                         <button
                           type="button"

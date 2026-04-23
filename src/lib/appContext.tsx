@@ -16,7 +16,6 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5000";
 // ─── Types ──────────────────────────────────────────────────────────────────
 
 export type DynamicPointType =
-  | "social"
   | "sgi_geo"
   | "sgi_magnetometry"
   | "sgi_gravimetry"
@@ -30,6 +29,7 @@ export interface DynamicPoint {
   position: [number, number];
   description?: string;
   addedAt: string;
+  acquired?: boolean;
 }
 
 export interface ParticipantEntry {
@@ -72,7 +72,7 @@ interface AppContextType {
   removeDynamicPoint: (id: string) => void;
   updateDynamicPoint: (
     id: string,
-    updates: Partial<Pick<DynamicPoint, "position" | "description" | "name">>
+    updates: Partial<Pick<DynamicPoint, "position" | "description" | "name" | "acquired">>
   ) => void;
   participants: ParticipantEntry[];
   addParticipant: (participant: Omit<ParticipantEntry, "id">) => void;
@@ -260,7 +260,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const updateDynamicPoint = useCallback(
     (
       id: string,
-      updates: Partial<Pick<DynamicPoint, "position" | "description" | "name">>
+      updates: Partial<Pick<DynamicPoint, "position" | "description" | "name" | "acquired">>
     ) => {
       setDynamicPoints((prev) =>
         prev.map((p) => (p.id === id ? { ...p, ...updates } : p))

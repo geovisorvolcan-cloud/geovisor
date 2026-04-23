@@ -18,7 +18,6 @@ const TEAM_OPTIONS: TeamOption[] = [
   { value: "uis_geophysics", label: "UIS Geophysics Team (Magnetotelluric)" },
   { value: "sgi_gravimetry", label: "SGI GEO (Gravimetry)" },
   { value: "sgi_magnetometry", label: "SGI GEO (Magnetometry)" },
-  { value: "social", label: "Social and environmental characterization" },
 ];
 
 const POINT_NAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9 -]*$/;
@@ -74,6 +73,7 @@ export default function AdminPage() {
   const [lat, setLat] = useState("");
   const [lng, setLng] = useState("");
   const [description, setDescription] = useState("");
+  const [pointAcquired, setPointAcquired] = useState(false);
   const [addPointError, setAddPointError] = useState("");
   const [addPointSuccess, setAddPointSuccess] = useState(false);
 
@@ -206,14 +206,15 @@ export default function AdminPage() {
     const parsed = parsePosition(lat, lng);
     if (parsed.error) return setAddPointError(parsed.error);
 
-    addDynamicPoint({ type: team, name, position: parsed.position!, description: description.trim() || undefined });
+    addDynamicPoint({ type: team, name, position: parsed.position!, description: description.trim() || undefined, acquired: pointAcquired });
     setPointName("");
     setLat("");
     setLng("");
     setDescription("");
+    setPointAcquired(false);
     setAddPointSuccess(true);
     setTimeout(() => setAddPointSuccess(false), 2000);
-  }, [team, pointName, lat, lng, description, addDynamicPoint]);
+  }, [team, pointName, lat, lng, description, pointAcquired, addDynamicPoint]);
 
 
   const handleSwitchUserRole = useCallback(
@@ -431,6 +432,17 @@ export default function AdminPage() {
                   />
                 </div>
 
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={pointAcquired}
+                    onChange={(e) => setPointAcquired(e.target.checked)}
+                    className="w-4 h-4 accent-green-500"
+                  />
+                  <span className="text-xs font-medium text-gray-700">Acquired</span>
+                  <span className="text-[10px] text-gray-400">(unchecked = characterized)</span>
+                </label>
+
                 {addPointError && <p className="text-red-500 text-xs">{addPointError}</p>}
                 {addPointSuccess && <p className="text-green-600 text-xs font-medium">Point added to map.</p>}
 
@@ -460,7 +472,6 @@ export default function AdminPage() {
                 <span className="text-xs text-gray-700">Office Participant</span>
               </div>
               <p className="text-xs font-semibold text-gray-500 mb-2">Data Points:</p>
-              <LegendPoint type="social" label="Social and environmental characterization" />
               <LegendPoint type="sgi_magnetometry" label="SGI GEO (Magnetometry)" />
               <LegendPoint type="sgi_gravimetry" label="SGI GEO (Gravimetry)" />
               <LegendPoint type="gidco" label="GIDCO (Magnetotelluric)" />
@@ -620,9 +631,9 @@ export default function AdminPage() {
         </div>
 
         {/* Progress bars */}
-        <div className="p-5 space-y-5 flex-1">
+        <div className="p-5 space-y-5">
           {PROGRESS_DATA.map((item) => {
-            const current = dynamicPoints.filter((p) => p.type === item.teamType).length;
+            const current = dynamicPoints.filter((p) => p.type === item.teamType && !p.acquired).length;
             const total = progressTotals[item.label] ?? item.total;
             const points = dynamicPoints.filter((p) => p.type === item.teamType);
             return (
@@ -639,6 +650,41 @@ export default function AdminPage() {
               />
             );
           })}
+        </div>
+
+        {/* Acquisition & Characterization progress */}
+        <div className="p-5 border-t border-gray-100 space-y-3 flex-1">
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Acquisition &amp; Characterization</p>
+          <AcqProgressBar
+            label="Characterization"
+            color="#3B82F6"
+            acquired={dynamicPoints.filter((p) => !p.acquired).length}
+            total={PROGRESS_DATA.reduce((sum, item) => sum + (progressTotals[item.label] ?? item.total), 0)}
+          />
+          <AcqProgressBar
+            label="SGI GEO Acquisition – GRAV"
+            color="#EC4899"
+            acquired={dynamicPoints.filter((p) => p.type === "sgi_gravimetry" && p.acquired).length}
+            total={dynamicPoints.filter((p) => p.type === "sgi_gravimetry").length}
+          />
+          <AcqProgressBar
+            label="SGI GEO Acquisition – MAG"
+            color="#D946EF"
+            acquired={dynamicPoints.filter((p) => p.type === "sgi_magnetometry" && p.acquired).length}
+            total={dynamicPoints.filter((p) => p.type === "sgi_magnetometry").length}
+          />
+          <AcqProgressBar
+            label="MT Acquisition – UIS"
+            color="#F97316"
+            acquired={dynamicPoints.filter((p) => p.type === "uis_geophysics" && p.acquired).length}
+            total={dynamicPoints.filter((p) => p.type === "uis_geophysics").length}
+          />
+          <AcqProgressBar
+            label="MT Acquisition – GIDCO"
+            color="#22C55E"
+            acquired={dynamicPoints.filter((p) => p.type === "gidco" && p.acquired).length}
+            total={dynamicPoints.filter((p) => p.type === "gidco").length}
+          />
         </div>
 
         {/* Footer action */}
@@ -693,6 +739,28 @@ function PointTypeIcon({ type, animated = false }: { type: DynamicPointType; ani
       )}
       <span className="relative h-3.5 w-3.5 rounded-full border-2 border-white shadow" style={{ backgroundColor: color }} />
     </span>
+  );
+}
+
+function AcqProgressBar({ label, color, acquired, total }: { label: string; color: string; acquired: number; total: number }) {
+  const pct = total > 0 ? Math.round((acquired / total) * 100) : 0;
+  const fillWidth = pct === 0 ? 0 : Math.max(pct, 2);
+  return (
+    <div>
+      <p className="text-xs font-medium text-gray-700 mb-1">{label}</p>
+      <div className="relative w-full bg-gray-200 rounded-full h-4 overflow-hidden">
+        <div
+          className="h-full rounded-full flex items-center justify-end pr-1.5 transition-all"
+          style={{ width: `${fillWidth}%`, backgroundColor: color }}
+        >
+          {pct >= 15 && <span className="text-white text-[10px] font-bold">{pct}%</span>}
+        </div>
+      </div>
+      <div className="flex justify-between text-[10px] text-gray-400 mt-0.5">
+        <span>{acquired} / {total} points</span>
+        <span>{pct}%</span>
+      </div>
+    </div>
   );
 }
 

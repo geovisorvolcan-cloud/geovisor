@@ -1,5 +1,5 @@
 // Cerro Machín Volcano – Colombia
-export const VOLCANO_POSITION: [number, number] = [4.5188, -75.3802];
+export const VOLCANO_POSITION: [number, number] = [4.487, -75.389];
 
 export type VolcanoAlertLevel = "green" | "yellow" | "orange" | "red";
 
@@ -40,7 +40,6 @@ export const VOLCANO_ALERT_LEVELS: Record<
 export const DEFAULT_VOLCANO_ALERT_LEVEL: VolcanoAlertLevel = "yellow";
 
 export type DataPointType =
-  | "social"
   | "sgi_geo"
   | "sgi_magnetometry"
   | "sgi_gravimetry"
@@ -147,12 +146,6 @@ export const PARTICIPANTS: Participant[] = [
 ];
 
 export const PROGRESS_DATA = [
-  {
-    label: "Social and environmental characterization",
-    total: 99,
-    color: "#3B82F6",
-    teamType: "social" as const,
-  },
   {
     label: "SGI GEO Magnetometry progress",
     total: 50,

@@ -72,7 +72,6 @@ function normalizePointType(type: string): DynamicPointType {
   if (type === "mt_acquisition") return "uis_geophysics";
   if (type === "sgi_geo") return "sgi_magnetometry";
   if (
-    type === "social" ||
     type === "sgi_magnetometry" ||
     type === "sgi_gravimetry" ||
     type === "gidco" ||
@@ -80,7 +79,7 @@ function normalizePointType(type: string): DynamicPointType {
   ) {
     return type;
   }
-  return "social";
+  return "sgi_magnetometry";
 }
 
 function createDynamicPointIcon(type: DynamicPointType) {
@@ -145,7 +144,6 @@ function createDynamicPointIcon(type: DynamicPointType) {
 // ─── Dynamic type config ──────────────────────────────────────────────────────
 
 const DYNAMIC_LABEL: Record<DynamicPointType, string> = {
-  social: "Social and environmental characterization",
   sgi_geo: "SGI GEO (Magnetometry)",
   sgi_magnetometry: "SGI GEO (Magnetometry)",
   sgi_gravimetry: "SGI GEO (Gravimetry)",

@@ -11,7 +11,6 @@ import { PROGRESS_DATA, VOLCANO_ALERT_LEVELS } from "@/lib/mapData";
 const MapView = dynamic(() => import("@/components/MapView"), { ssr: false });
 
 type LegendPointType =
-  | "social"
   | "sgi_geo"
   | "sgi_magnetometry"
   | "sgi_gravimetry"
@@ -198,10 +197,6 @@ export default function MapPage() {
             </div>
 
             <p className="text-xs font-semibold text-gray-500 mb-2">Data Points:</p>
-            <LegendPoint
-              type="social"
-              label="Social and environmental characterization"
-            />
             <LegendPoint type="sgi_magnetometry" label="SGI GEO (Magnetometry)" />
             <LegendPoint type="sgi_gravimetry" label="SGI GEO (Gravimetry)" />
             <LegendPoint type="gidco" label="GIDCO (Magnetotelluric)" />
@@ -288,7 +283,6 @@ export default function MapPage() {
                   <div className="flex items-center gap-2 mb-1.5"><ParticipantMiniIcon color="#EF4444" /><span className="text-xs text-gray-700">Field Participant</span></div>
                   <div className="flex items-center gap-2 mb-2"><ParticipantMiniIcon color="#3B82F6" /><span className="text-xs text-gray-700">Office Participant</span></div>
                   <p className="text-xs font-semibold text-gray-500 mb-1.5">Data Points:</p>
-                  <LegendPoint type="social" label="Social and environmental characterization" />
                   <LegendPoint type="sgi_magnetometry" label="SGI GEO (Magnetometry)" />
                   <LegendPoint type="sgi_gravimetry" label="SGI GEO (Gravimetry)" />
                   <LegendPoint type="gidco" label="GIDCO (Magnetotelluric)" />
@@ -424,9 +418,9 @@ export default function MapPage() {
           </div>
         </div>
 
-        <div className="p-5 space-y-5 flex-1">
+        <div className="p-5 space-y-5">
           {PROGRESS_DATA.map((item) => {
-            const current = dynamicPoints.filter((p) => p.type === item.teamType).length;
+            const current = dynamicPoints.filter((p) => p.type === item.teamType && !p.acquired).length;
             const total = progressTotals[item.label] ?? item.total;
             return (
               <ProgressSummaryItem
@@ -438,6 +432,41 @@ export default function MapPage() {
               />
             );
           })}
+        </div>
+
+        {/* Acquisition & Characterization progress */}
+        <div className="p-5 border-t border-gray-100 space-y-3 flex-1">
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Acquisition &amp; Characterization</p>
+          <AcqProgressBar
+            label="Characterization"
+            color="#3B82F6"
+            acquired={dynamicPoints.filter((p) => !p.acquired).length}
+            total={PROGRESS_DATA.reduce((sum, item) => sum + (progressTotals[item.label] ?? item.total), 0)}
+          />
+          <AcqProgressBar
+            label="SGI GEO Acquisition – GRAV"
+            color="#EC4899"
+            acquired={dynamicPoints.filter((p) => p.type === "sgi_gravimetry" && p.acquired).length}
+            total={dynamicPoints.filter((p) => p.type === "sgi_gravimetry").length}
+          />
+          <AcqProgressBar
+            label="SGI GEO Acquisition – MAG"
+            color="#D946EF"
+            acquired={dynamicPoints.filter((p) => p.type === "sgi_magnetometry" && p.acquired).length}
+            total={dynamicPoints.filter((p) => p.type === "sgi_magnetometry").length}
+          />
+          <AcqProgressBar
+            label="MT Acquisition – UIS"
+            color="#F97316"
+            acquired={dynamicPoints.filter((p) => p.type === "uis_geophysics" && p.acquired).length}
+            total={dynamicPoints.filter((p) => p.type === "uis_geophysics").length}
+          />
+          <AcqProgressBar
+            label="MT Acquisition – GIDCO"
+            color="#22C55E"
+            acquired={dynamicPoints.filter((p) => p.type === "gidco" && p.acquired).length}
+            total={dynamicPoints.filter((p) => p.type === "gidco").length}
+          />
         </div>
 
         <div className="p-5 border-t border-gray-100">
@@ -609,6 +638,28 @@ function LocationButton({
       {geoError ? (
         <p className="text-xs text-red-500 mt-1 text-center">{geoError}</p>
       ) : null}
+    </div>
+  );
+}
+
+function AcqProgressBar({ label, color, acquired, total }: { label: string; color: string; acquired: number; total: number }) {
+  const pct = total > 0 ? Math.round((acquired / total) * 100) : 0;
+  const fillWidth = pct === 0 ? 0 : Math.max(pct, 2);
+  return (
+    <div>
+      <p className="text-xs font-medium text-gray-700 mb-1">{label}</p>
+      <div className="relative w-full bg-gray-200 rounded-full h-4 overflow-hidden">
+        <div
+          className="h-full rounded-full flex items-center justify-end pr-1.5 transition-all"
+          style={{ width: `${fillWidth}%`, backgroundColor: color }}
+        >
+          {pct >= 15 && <span className="text-white text-[10px] font-bold">{pct}%</span>}
+        </div>
+      </div>
+      <div className="flex justify-between text-[10px] text-gray-400 mt-0.5">
+        <span>{acquired} / {total} points</span>
+        <span>{pct}%</span>
+      </div>
     </div>
   );
 }
