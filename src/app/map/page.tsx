@@ -2,13 +2,16 @@
 
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { playSosConfirmationSound } from "@/lib/alertAudio";
 import { useAppContext } from "@/lib/appContext";
 import { useAuth } from "@/lib/authContext";
 import { useGeolocation } from "@/lib/useGeolocation";
 import { PROGRESS_DATA, VOLCANO_ALERT_LEVELS } from "@/lib/mapData";
 
 const MapView = dynamic(() => import("@/components/MapView"), { ssr: false });
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5000";
+const SECTION_HEADING_CLASS = "text-xs font-bold text-gray-700 uppercase tracking-wide";
 
 type LegendPointType =
   | "sgi_geo"
@@ -22,10 +25,13 @@ export default function MapPage() {
   const { dynamicPoints, participants, progressTotals, volcanoAlertLevel, updateDynamicPoint } = useAppContext();
   type DynType = (typeof dynamicPoints)[number]["type"];
   const alertInfo = VOLCANO_ALERT_LEVELS[volcanoAlertLevel];
-  const { ready, isAuthenticated, user, logout } = useAuth();
+  const { ready, isAuthenticated, user, token, logout } = useAuth();
   const { sharing, error: geoError, startSharing, stopSharing } = useGeolocation();
   const [clock, setClock] = useState("");
   const [sosSent, setSosSent] = useState(false);
+  const [sosSending, setSosSending] = useState(false);
+  const [sosError, setSosError] = useState("");
+  const [sosNotice, setSosNotice] = useState("");
   const [mobileExpanded, setMobileExpanded] = useState(false);
   const [showParticipants, setShowParticipants] = useState(true);
   const [hiddenParticipantIds, setHiddenParticipantIds] = useState<Set<string>>(new Set());
@@ -51,6 +57,14 @@ export default function MapPage() {
   const officeParticipants = participants.filter((participant) => participant.role === "office");
   const isAdmin = user?.role === "admin";
   const isRegisteredUser = user?.role === "user";
+  const visibleParticipants = useMemo(
+    () => (showParticipants ? participants.filter((p) => !hiddenParticipantIds.has(p.id)) : []),
+    [showParticipants, participants, hiddenParticipantIds]
+  );
+  const handleToggleAcquired = useCallback(
+    (id: string, acquired: boolean) => updateDynamicPoint(id, { acquired }),
+    [updateDynamicPoint]
+  );
 
   useEffect(() => {
     const tick = () =>
@@ -67,11 +81,43 @@ export default function MapPage() {
     return () => clearInterval(intervalId);
   }, []);
 
-  const handleSendSos = () => {
-    if (!isRegisteredUser || sosSent) return;
-    setSosSent(true);
-    setTimeout(() => setSosSent(false), 5000);
-  };
+  const handleSendSos = useCallback(async () => {
+    if (!isRegisteredUser || sosSent || sosSending || !token) return;
+
+    setSosSending(true);
+    setSosError("");
+    setSosNotice("");
+
+    try {
+      const res = await fetch(`${API_URL}/api/sos`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ message: "Emergency SOS triggered from the field map." }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setSosError(data.error ?? "Could not send the SOS alert.");
+        return;
+      }
+
+      setSosSent(true);
+      setSosNotice(
+        data.emailSent
+          ? `SOS alert sent. Email notification delivered to ${data.emailRecipient}.`
+          : "SOS alert was saved, but email delivery is not configured on the backend yet."
+      );
+      void playSosConfirmationSound();
+      setTimeout(() => setSosSent(false), 5000);
+    } catch {
+      setSosError("Network error. Please try again.");
+    } finally {
+      setSosSending(false);
+    }
+  }, [isRegisteredUser, sosSent, sosSending, token]);
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-gray-200">
@@ -166,6 +212,9 @@ export default function MapPage() {
             isRegisteredUser={Boolean(isRegisteredUser)}
             userName={user?.name ?? ""}
             sosSent={sosSent}
+            sosSending={sosSending}
+            sosError={sosError}
+            sosNotice={sosNotice}
             sharing={sharing}
             geoError={geoError}
             onRegister={() => router.push("/register")}
@@ -197,12 +246,12 @@ export default function MapPage() {
             </div>
 
             <p className="text-xs font-semibold text-gray-500 mb-2">Data Points:</p>
-            <LegendPoint type="sgi_magnetometry" label="SGI GEO (Magnetometry)" />
-            <LegendPoint type="sgi_gravimetry" label="SGI GEO (Gravimetry)" />
-            <LegendPoint type="gidco" label="GIDCO (Magnetotelluric)" />
+            <LegendPoint type="sgi_magnetometry" label="SGI GEO (MAG)" />
+            <LegendPoint type="sgi_gravimetry" label="SGI GEO (GRAV)" />
+            <LegendPoint type="gidco" label="MT – GIDCO" />
             <LegendPoint
               type="uis_geophysics"
-              label="UIS Geophysics Team (Magnetotelluric)"
+              label="MT – UIS"
             />
           </div>
         </div>
@@ -212,9 +261,9 @@ export default function MapPage() {
             useSatellite={true}
             extraPoints={dynamicPoints}
             hiddenPointTypes={hiddenPointTypes as Set<import("@/lib/appContext").DynamicPointType>}
-            participantEntries={showParticipants ? participants.filter((p) => !hiddenParticipantIds.has(p.id)) : []}
+            participantEntries={visibleParticipants}
             volcanoAlertLevel={volcanoAlertLevel}
-            onToggleAcquired={(id, acquired) => updateDynamicPoint(id, { acquired })}
+            onToggleAcquired={handleToggleAcquired}
           />
         </div>
       </div>
@@ -284,10 +333,10 @@ export default function MapPage() {
                   <div className="flex items-center gap-2 mb-1.5"><ParticipantMiniIcon color="#EF4444" /><span className="text-xs text-gray-700">Field Participant</span></div>
                   <div className="flex items-center gap-2 mb-2"><ParticipantMiniIcon color="#3B82F6" /><span className="text-xs text-gray-700">Office Participant</span></div>
                   <p className="text-xs font-semibold text-gray-500 mb-1.5">Data Points:</p>
-                  <LegendPoint type="sgi_magnetometry" label="SGI GEO (Magnetometry)" />
-                  <LegendPoint type="sgi_gravimetry" label="SGI GEO (Gravimetry)" />
-                  <LegendPoint type="gidco" label="GIDCO (Magnetotelluric)" />
-                  <LegendPoint type="uis_geophysics" label="UIS Geophysics Team (Magnetotelluric)" />
+                  <LegendPoint type="sgi_magnetometry" label="SGI GEO (MAG)" />
+                  <LegendPoint type="sgi_gravimetry" label="SGI GEO (GRAV)" />
+                  <LegendPoint type="gidco" label="MT – GIDCO" />
+                  <LegendPoint type="uis_geophysics" label="MT – UIS" />
                 </div>
               </>
             )}
@@ -300,6 +349,9 @@ export default function MapPage() {
               isRegisteredUser={Boolean(isRegisteredUser)}
               userName={user?.name ?? ""}
               sosSent={sosSent}
+              sosSending={sosSending}
+              sosError={sosError}
+              sosNotice={sosNotice}
               sharing={sharing}
               geoError={geoError}
               onRegister={() => router.push("/register")}
@@ -411,7 +463,7 @@ export default function MapPage() {
                     className="w-2.5 h-2.5 rounded-full flex-shrink-0"
                     style={{ backgroundColor: hidden ? "#d1d5db" : item.color }}
                   />
-                  <span className="flex-1 text-left truncate">{item.label}</span>
+                  <span className="flex-1 text-left truncate">{item.teamLabel ?? item.label}</span>
                   <span className="flex-shrink-0 text-[10px]">{hidden ? "🚫" : "👁"}</span>
                 </button>
               );
@@ -421,7 +473,7 @@ export default function MapPage() {
 
         {/* ── Characterization section ── */}
         <div className="p-5 border-b border-gray-200 space-y-4">
-          <p className="text-xs font-bold text-gray-700 uppercase tracking-wide">Characterization</p>
+          <p className={SECTION_HEADING_CLASS}>Characterization</p>
           <AcqProgressBar
             label="Total Characterization"
             color="#3B82F6"
@@ -434,7 +486,7 @@ export default function MapPage() {
             return (
               <ProgressSummaryItem
                 key={item.label}
-                label={item.label}
+                label={item.displayLabel ?? item.label}
                 current={current}
                 total={total}
                 color={item.color}
@@ -444,8 +496,8 @@ export default function MapPage() {
         </div>
 
         {/* ── Acquisition section ── */}
-        <div className="p-5 space-y-3 flex-1">
-          <p className="text-xs font-bold text-gray-700 uppercase tracking-wide">Acquisition</p>
+        <div className="p-5 space-y-4 flex-1">
+          <p className={SECTION_HEADING_CLASS}>Acquisition</p>
           <AcqProgressBar
             label="Total Acquisition"
             color="#10B981"
@@ -453,13 +505,13 @@ export default function MapPage() {
             total={PROGRESS_DATA.reduce((sum, item) => sum + (progressTotals[item.label] ?? item.total), 0)}
           />
           <AcqProgressBar
-            label="SGI GEO Acquisition – GRAV"
+            label="SGI GEO Acquisition – Gravimetry"
             color="#EC4899"
             acquired={dynamicPoints.filter((p) => p.type === "sgi_gravimetry" && p.acquired).length}
             total={dynamicPoints.filter((p) => p.type === "sgi_gravimetry").length}
           />
           <AcqProgressBar
-            label="SGI GEO Acquisition – MAG"
+            label="SGI GEO Acquisition – Magnetometry"
             color="#D946EF"
             acquired={dynamicPoints.filter((p) => p.type === "sgi_magnetometry" && p.acquired).length}
             total={dynamicPoints.filter((p) => p.type === "sgi_magnetometry").length}
@@ -516,6 +568,9 @@ function AccessCard({
   isRegisteredUser,
   userName,
   sosSent,
+  sosSending,
+  sosError,
+  sosNotice,
   sharing,
   geoError,
   onRegister,
@@ -530,6 +585,9 @@ function AccessCard({
   isRegisteredUser: boolean;
   userName: string;
   sosSent: boolean;
+  sosSending: boolean;
+  sosError: string;
+  sosNotice: string;
   sharing: boolean;
   geoError: string | null;
   onRegister: () => void;
@@ -604,16 +662,22 @@ function AccessCard({
           occurs in the field.
         </p>
         <LocationButton sharing={sharing} geoError={geoError} onToggle={onToggleSharing} />
+        {sosError ? (
+          <p className="mt-2 text-xs font-medium text-red-600">{sosError}</p>
+        ) : null}
+        {sosNotice ? (
+          <p className="mt-2 text-xs font-medium text-green-700">{sosNotice}</p>
+        ) : null}
         <button
           onClick={onSendSos}
-          disabled={sosSent}
+          disabled={sosSent || sosSending}
           className={`w-full mt-2 flex items-center justify-center gap-2 py-3 rounded-xl text-white font-bold text-xs transition ${
-            sosSent
+            sosSent || sosSending
               ? "bg-gray-400 cursor-not-allowed"
               : "bg-red-600 hover:bg-red-700 active:scale-95"
           }`}
         >
-          {sosSent ? "ALERT SENT" : "SEND SOS ALERT"}
+          {sosSending ? "SENDING ALERT..." : sosSent ? "ALERT SENT" : "SEND SOS ALERT"}
         </button>
       </div>
     );

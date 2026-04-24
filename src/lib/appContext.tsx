@@ -103,6 +103,7 @@ const SEED_DYNAMIC_POINTS: DynamicPoint[] = DATA_POINTS.map((dp) => ({
   position: dp.position,
   description: dp.description,
   addedAt: "2025-01-01T00:00:00.000Z",
+  acquired: dp.acquired ?? false,
 }));
 
 const DEFAULT_PARTICIPANTS: ParticipantEntry[] = [];

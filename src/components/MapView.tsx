@@ -10,6 +10,8 @@ import {
   ParticipantEntry,
 } from "@/lib/appContext";
 
+type TaggedMarker = L.Marker & { __markerId?: string };
+
 // ─── Icon helpers ─────────────────────────────────────────────────────────────
 
 function escapeHtml(value: string) {
@@ -144,11 +146,11 @@ function createDynamicPointIcon(type: DynamicPointType) {
 // ─── Dynamic type config ──────────────────────────────────────────────────────
 
 const DYNAMIC_LABEL: Record<DynamicPointType, string> = {
-  sgi_geo: "SGI GEO (Magnetometry)",
-  sgi_magnetometry: "SGI GEO (Magnetometry)",
-  sgi_gravimetry: "SGI GEO (Gravimetry)",
-  gidco: "GIDCO (Magnetotelluric)",
-  uis_geophysics: "UIS Geophysics Team (Magnetotelluric)",
+  sgi_geo: "SGI GEO (MAG)",
+  sgi_magnetometry: "SGI GEO (MAG)",
+  sgi_gravimetry: "SGI GEO (GRAV)",
+  gidco: "MT – GIDCO",
+  uis_geophysics: "MT – UIS",
 };
 
 // ─── Props ────────────────────────────────────────────────────────────────────
@@ -179,8 +181,8 @@ export default function MapView({
   const mapRef = useRef<L.Map | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const volcanoMarkerRef = useRef<L.Marker | null>(null);
-  const dynMarkersRef = useRef<L.Marker[]>([]);
-  const partMarkersRef = useRef<L.Marker[]>([]);
+  const dynMarkersRef = useRef<TaggedMarker[]>([]);
+  const partMarkersRef = useRef<TaggedMarker[]>([]);
 
   // ── Initialize map once ──────────────────────────────────────────────────
   useEffect(() => {
@@ -245,6 +247,13 @@ export default function MapView({
     const map = mapRef.current;
     if (!map) return;
 
+    const openPopupIds = new Set(
+      dynMarkersRef.current
+        .filter((marker) => marker.isPopupOpen())
+        .map((marker) => marker.__markerId)
+        .filter((id): id is string => Boolean(id))
+    );
+
     dynMarkersRef.current.forEach((m) => map.removeLayer(m));
     dynMarkersRef.current = [];
 
@@ -283,7 +292,10 @@ export default function MapView({
           <div style="color:#9ca3af;font-size:10px;margin-top:4px;">Added: ${added}</div>
         </div>`;
 
-      const marker = L.marker(pt.position, { icon }).addTo(map)
+      const marker = L.marker(pt.position, { icon }) as TaggedMarker;
+      marker.__markerId = pt.id;
+      marker
+        .addTo(map)
         .bindPopup(popup, { autoClose: false, closeOnClick: false, closeButton: false });
 
       marker.on("popupopen", () => {
@@ -304,6 +316,7 @@ export default function MapView({
         }
       });
 
+      if (openPopupIds.has(pt.id)) marker.openPopup();
       dynMarkersRef.current.push(marker);
     });
   }, [extraPoints, hiddenPointTypes, onToggleAcquired]);
@@ -312,6 +325,13 @@ export default function MapView({
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
+
+    const openPopupIds = new Set(
+      partMarkersRef.current
+        .filter((marker) => marker.isPopupOpen())
+        .map((marker) => marker.__markerId)
+        .filter((id): id is string => Boolean(id))
+    );
 
     partMarkersRef.current.forEach((m) => map.removeLayer(m));
     partMarkersRef.current = [];
@@ -345,9 +365,12 @@ export default function MapView({
             ${ecHtml}
           </div>`;
 
-        const marker = L.marker(p.position!, { icon })
+        const marker = L.marker(p.position!, { icon }) as TaggedMarker;
+        marker.__markerId = p.id;
+        marker
           .addTo(map)
           .bindPopup(popup, { autoClose: false, closeOnClick: false });
+        if (openPopupIds.has(p.id)) marker.openPopup();
         partMarkersRef.current.push(marker);
       });
   }, [participantEntries]);

@@ -228,10 +228,10 @@ export default function ProgressAdjustItem({
                             className={`inline-block mt-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${
                               point.acquired
                                 ? "bg-green-100 text-green-700"
-                                : "bg-blue-100 text-blue-600"
+                                : "bg-gray-100 text-gray-600"
                             }`}
                           >
-                            {point.acquired ? "Acquired" : "Characterized"}
+                            {point.acquired ? "Acquired" : "Not acquired"}
                           </span>
                         </div>
                         <button

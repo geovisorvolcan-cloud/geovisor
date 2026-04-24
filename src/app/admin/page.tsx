@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
+import { playSosAlarmSound } from "@/lib/alertAudio";
 import { useAppContext, DynamicPointType, ParticipantEntry, VolcanoAlertLevel } from "@/lib/appContext";
 import { useAuth } from "@/lib/authContext";
 import { PROGRESS_DATA, VOLCANO_ALERT_LEVELS } from "@/lib/mapData";
@@ -14,11 +15,13 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5000";
 
 type TeamOption = { value: DynamicPointType; label: string };
 const TEAM_OPTIONS: TeamOption[] = [
-  { value: "gidco", label: "GIDCO (Magnetotelluric)" },
-  { value: "uis_geophysics", label: "UIS Geophysics Team (Magnetotelluric)" },
-  { value: "sgi_gravimetry", label: "SGI GEO (Gravimetry)" },
-  { value: "sgi_magnetometry", label: "SGI GEO (Magnetometry)" },
+  { value: "gidco", label: "MT – GIDCO" },
+  { value: "uis_geophysics", label: "MT – UIS" },
+  { value: "sgi_gravimetry", label: "SGI GEO (GRAV)" },
+  { value: "sgi_magnetometry", label: "SGI GEO (MAG)" },
 ];
+
+const SECTION_HEADING_CLASS = "text-xs font-bold text-gray-700 uppercase tracking-wide";
 
 const POINT_NAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9 -]*$/;
 
@@ -28,6 +31,20 @@ type RegisteredUser = {
   email: string;
   role: string;
   position?: [number, number];
+};
+
+type AdminSosAlert = {
+  id: string;
+  user: {
+    id: string;
+    name: string;
+    email: string;
+    role: string;
+  } | null;
+  position?: [number, number];
+  message: string;
+  resolved: boolean;
+  createdAt: string;
 };
 
 function parsePosition(latValue: string, lngValue: string) {
@@ -66,6 +83,7 @@ export default function AdminPage() {
   } = useAppContext();
 
   const alertInfo = VOLCANO_ALERT_LEVELS[volcanoAlertLevel];
+  const hasAdminAccess = ready && isAuthenticated && user?.role === "admin";
 
   // ── Add-point form ─────────────────────────────────────────────────────
   const [team, setTeam] = useState<DynamicPointType>("gidco");
@@ -76,6 +94,12 @@ export default function AdminPage() {
   const [pointAcquired, setPointAcquired] = useState(false);
   const [addPointError, setAddPointError] = useState("");
   const [addPointSuccess, setAddPointSuccess] = useState(false);
+  const [isAdminPanelOpen, setIsAdminPanelOpen] = useState(true);
+  const [recentSosAlerts, setRecentSosAlerts] = useState<AdminSosAlert[]>([]);
+  const [sosAlertsError, setSosAlertsError] = useState("");
+  const [sosAlarmLabel, setSosAlarmLabel] = useState("");
+  const seenSosAlertIdsRef = useRef<Set<string>>(new Set());
+  const loadedSosAlertsRef = useRef(false);
 
 
   // ── Point-type visibility toggles ──────────────────────────────────────
@@ -120,6 +144,54 @@ export default function AdminPage() {
       .catch(() => {});
   }, []);
 
+  useEffect(() => {
+    if (!hasAdminAccess || !token) return;
+
+    let cancelled = false;
+
+    const fetchSosAlerts = async () => {
+      try {
+        const res = await fetch(`${API_URL}/api/admin/sos-alerts`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await res.json().catch(() => []);
+        if (!res.ok) throw new Error(typeof data?.error === "string" ? data.error : "Could not load SOS alerts.");
+        if (cancelled) return;
+
+        const alerts = Array.isArray(data) ? (data as AdminSosAlert[]) : [];
+        setRecentSosAlerts(alerts);
+        setSosAlertsError("");
+
+        const nextIds = new Set(alerts.map((alert) => alert.id));
+        if (!loadedSosAlertsRef.current) {
+          seenSosAlertIdsRef.current = nextIds;
+          loadedSosAlertsRef.current = true;
+          return;
+        }
+
+        const newAlerts = alerts.filter((alert) => !seenSosAlertIdsRef.current.has(alert.id));
+        if (newAlerts.length > 0) {
+          const latestAlert = newAlerts[0];
+          setSosAlarmLabel(`New SOS alert from ${latestAlert.user?.name ?? "an unknown user"}.`);
+          void playSosAlarmSound();
+        }
+
+        seenSosAlertIdsRef.current = nextIds;
+      } catch (err) {
+        if (cancelled) return;
+        setSosAlertsError(err instanceof Error ? err.message : "Could not load SOS alerts.");
+      }
+    };
+
+    fetchSosAlerts();
+    const intervalId = setInterval(fetchSosAlerts, 5000);
+
+    return () => {
+      cancelled = true;
+      clearInterval(intervalId);
+    };
+  }, [hasAdminAccess, token]);
+
   const handleManualScrape = async () => {
     if (!token) return;
     setScrapeLoading(true);
@@ -145,8 +217,6 @@ export default function AdminPage() {
 
   // ── Clock ───────────────────────────────────────────────────────────────
   const [clock, setClock] = useState("");
-
-  const hasAdminAccess = ready && isAuthenticated && user?.role === "admin";
 
   useEffect(() => {
     if (!ready) return;
@@ -183,14 +253,22 @@ export default function AdminPage() {
   const officeUsers = registeredUsers.filter((u) => u.role === "office");
 
   // Convert backend users to ParticipantEntry[] for the map
-  const mapParticipants: ParticipantEntry[] = registeredUsers.map((u) => ({
-    id: u.id,
-    name: u.name,
-    role: (u.role as "field" | "office") ?? "field",
-    position: Array.isArray(u.position) && u.position.length === 2
-      ? [u.position[0], u.position[1]]
-      : undefined,
-  }));
+  const mapParticipants: ParticipantEntry[] = useMemo(
+    () =>
+      registeredUsers.map((u) => ({
+        id: u.id,
+        name: u.name,
+        role: (u.role as "field" | "office") ?? "field",
+        position: Array.isArray(u.position) && u.position.length === 2
+          ? [u.position[0], u.position[1]]
+          : undefined,
+      })),
+    [registeredUsers]
+  );
+  const visibleMapParticipants = useMemo(
+    () => (showParticipants ? mapParticipants.filter((p) => !hiddenParticipantIds.has(p.id)) : []),
+    [showParticipants, mapParticipants, hiddenParticipantIds]
+  );
 
   // ── Handlers ────────────────────────────────────────────────────────────
 
@@ -238,6 +316,10 @@ export default function AdminPage() {
     },
     [token]
   );
+  const handleToggleAcquired = useCallback(
+    (id: string, acquired: boolean) => updateDynamicPoint(id, { acquired }),
+    [updateDynamicPoint]
+  );
 
   if (!ready || !hasAdminAccess) {
     return (
@@ -262,9 +344,22 @@ export default function AdminPage() {
             <span className="px-3 py-1 bg-orange-100 text-orange-700 rounded-full text-xs font-bold border border-orange-200">
               Admin Panel
             </span>
+            <button
+              type="button"
+              onClick={() => setIsAdminPanelOpen((v) => !v)}
+              className="px-3 py-1.5 bg-white/80 backdrop-blur rounded-full shadow text-xs font-medium text-gray-600 hover:bg-white transition"
+            >
+              {isAdminPanelOpen ? "Hide Panel" : "Show Panel"}
+            </button>
             <span className="text-xs text-gray-500 font-mono bg-white/70 px-2 py-1 rounded-full">
               Cerro Machín, Tolima, Colombia
             </span>
+            <button
+              onClick={() => router.push("/map")}
+              className="px-3 py-1.5 bg-white/80 backdrop-blur rounded-full shadow text-xs font-medium text-gray-600 hover:bg-white transition"
+            >
+              ← Map
+            </button>
             <button
               onClick={() => router.push("/profile")}
               className="px-3 py-1.5 bg-white/80 backdrop-blur rounded-full shadow text-xs font-medium text-gray-600 hover:bg-white transition"
@@ -440,7 +535,7 @@ export default function AdminPage() {
                     className="w-4 h-4 accent-green-500"
                   />
                   <span className="text-xs font-medium text-gray-700">Acquired</span>
-                  <span className="text-[10px] text-gray-400">(unchecked = characterized)</span>
+                  <span className="text-[10px] text-gray-400">(unchecked = not acquired)</span>
                 </label>
 
                 {addPointError && <p className="text-red-500 text-xs">{addPointError}</p>}
@@ -472,10 +567,10 @@ export default function AdminPage() {
                 <span className="text-xs text-gray-700">Office Participant</span>
               </div>
               <p className="text-xs font-semibold text-gray-500 mb-2">Data Points:</p>
-              <LegendPoint type="sgi_magnetometry" label="SGI GEO (Magnetometry)" />
-              <LegendPoint type="sgi_gravimetry" label="SGI GEO (Gravimetry)" />
-              <LegendPoint type="gidco" label="GIDCO (Magnetotelluric)" />
-              <LegendPoint type="uis_geophysics" label="UIS Geophysics Team (Magnetotelluric)" />
+              <LegendPoint type="sgi_magnetometry" label="SGI GEO (MAG)" />
+              <LegendPoint type="sgi_gravimetry" label="SGI GEO (GRAV)" />
+              <LegendPoint type="gidco" label="MT – GIDCO" />
+              <LegendPoint type="uis_geophysics" label="MT – UIS" />
             </div>
 
           </div>
@@ -486,20 +581,31 @@ export default function AdminPage() {
           ?
         </button>
 
+        {!isAdminPanelOpen && (
+          <button
+            type="button"
+            onClick={() => setIsAdminPanelOpen(true)}
+            className="absolute right-4 top-20 z-10 bg-white/90 backdrop-blur border border-gray-200 rounded-full px-4 py-2 shadow-lg text-xs font-semibold text-gray-700 hover:bg-white transition"
+          >
+            Open Admin Panel
+          </button>
+        )}
+
         {/* Satellite map */}
         <div className="absolute inset-0 z-0">
           <MapView
             useSatellite={true}
             extraPoints={dynamicPoints}
             hiddenPointTypes={hiddenPointTypes}
-            participantEntries={showParticipants ? mapParticipants.filter((p) => !hiddenParticipantIds.has(p.id)) : []}
+            participantEntries={visibleMapParticipants}
             volcanoAlertLevel={volcanoAlertLevel}
-            onToggleAcquired={(id, acquired) => updateDynamicPoint(id, { acquired })}
+            onToggleAcquired={handleToggleAcquired}
           />
         </div>
       </div>
 
       {/* ══════════════════ RIGHT PANEL ══════════════════ */}
+      {isAdminPanelOpen && (
       <aside className="w-80 flex-shrink-0 bg-white border-l border-gray-200 overflow-y-auto flex flex-col">
 
         {/* Participants header with map toggle */}
@@ -517,6 +623,70 @@ export default function AdminPage() {
             <span>{showParticipants ? "👁" : "🚫"}</span>
             {showParticipants ? "Visible on map" : "Hidden on map"}
           </button>
+        </div>
+
+        <div className="p-5 border-b border-red-100 bg-red-50">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold text-red-800">SOS Alerts</p>
+              <p className="text-xs text-red-700 mt-1">
+                {sosAlarmLabel || "Recent emergency alerts will appear here, and new ones trigger an alarm sound."}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => void playSosAlarmSound()}
+              className="flex-shrink-0 rounded-full border border-red-200 bg-white px-3 py-1 text-[11px] font-semibold text-red-700 hover:bg-red-100 transition"
+            >
+              Replay alarm
+            </button>
+          </div>
+          {sosAlertsError ? (
+            <p className="mt-3 text-xs font-medium text-red-600">{sosAlertsError}</p>
+          ) : null}
+          {recentSosAlerts.length === 0 ? (
+            <p className="mt-3 text-xs text-red-700/80">No SOS alerts received yet.</p>
+          ) : (
+            <div className="mt-3 space-y-2">
+              {recentSosAlerts.slice(0, 3).map((alert) => {
+                const coords = Array.isArray(alert.position) && alert.position.length === 2
+                  ? `${alert.position[0].toFixed(5)}, ${alert.position[1].toFixed(5)}`
+                  : "Position unavailable";
+                const mapsUrl = Array.isArray(alert.position) && alert.position.length === 2
+                  ? `https://maps.google.com/?q=${alert.position[0]},${alert.position[1]}`
+                  : null;
+
+                return (
+                  <div key={alert.id} className="rounded-xl border border-red-200 bg-white px-3 py-2 shadow-sm">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-xs font-semibold text-gray-900">{alert.user?.name ?? "Unknown user"}</p>
+                      <span className="text-[10px] font-medium text-red-600">
+                        {new Date(alert.createdAt).toLocaleString("en-US", {
+                          dateStyle: "short",
+                          timeStyle: "short",
+                        })}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-[11px] text-gray-700">{alert.message}</p>
+                    <p className="mt-1 text-[10px] font-mono text-gray-500">{coords}</p>
+                    <div className="mt-2 flex items-center justify-between gap-2">
+                      <span className="text-[10px] text-gray-500">{alert.user?.email ?? "No email"}</span>
+                      {mapsUrl ? (
+                        <a
+                          href={mapsUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-[10px] font-semibold text-red-700 hover:underline"
+                        >
+                          Open map
+                        </a>
+                      ) : null}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         {/* Field participants */}
@@ -623,7 +793,7 @@ export default function AdminPage() {
                     className="w-2.5 h-2.5 rounded-full flex-shrink-0"
                     style={{ backgroundColor: hidden ? "#d1d5db" : item.color }}
                   />
-                  <span className="flex-1 text-left truncate">{item.label}</span>
+                  <span className="flex-1 text-left truncate">{item.teamLabel ?? item.label}</span>
                   <span className="flex-shrink-0 text-[10px]">{hidden ? "🚫" : "👁"}</span>
                 </button>
               );
@@ -633,7 +803,7 @@ export default function AdminPage() {
 
         {/* ── Characterization section ── */}
         <div className="p-5 border-b border-gray-200 space-y-4">
-          <p className="text-xs font-bold text-gray-700 uppercase tracking-wide">Characterization</p>
+          <p className={SECTION_HEADING_CLASS}>Characterization</p>
           <AcqProgressBar
             label="Total Characterization"
             color="#3B82F6"
@@ -647,7 +817,7 @@ export default function AdminPage() {
             return (
               <ProgressAdjustItem
                 key={item.label}
-                label={item.label}
+                label={item.displayLabel ?? item.label}
                 current={current}
                 total={total}
                 color={item.color}
@@ -661,12 +831,12 @@ export default function AdminPage() {
         </div>
 
         {/* ── Acquisition section ── */}
-        <div className="p-5 space-y-3 flex-1">
+        <div className="p-5 space-y-4 flex-1">
           {(() => {
             const plannedTotal = PROGRESS_DATA.reduce((sum, item) => sum + (progressTotals[item.label] ?? item.total), 0);
             return (
               <>
-                <p className="text-xs font-bold text-gray-700 uppercase tracking-wide">Acquisition</p>
+                <p className={SECTION_HEADING_CLASS}>Acquisition</p>
                 <AcqProgressBar
                   label="Total Acquisition"
                   color="#10B981"
@@ -674,13 +844,13 @@ export default function AdminPage() {
                   total={plannedTotal}
                 />
                 <AcqProgressBar
-                  label="SGI GEO Acquisition – GRAV"
+                  label="SGI GEO Acquisition – Gravimetry"
                   color="#EC4899"
                   acquired={dynamicPoints.filter((p) => p.type === "sgi_gravimetry" && p.acquired).length}
                   total={dynamicPoints.filter((p) => p.type === "sgi_gravimetry").length}
                 />
                 <AcqProgressBar
-                  label="SGI GEO Acquisition – MAG"
+                  label="SGI GEO Acquisition – Magnetometry"
                   color="#D946EF"
                   acquired={dynamicPoints.filter((p) => p.type === "sgi_magnetometry" && p.acquired).length}
                   total={dynamicPoints.filter((p) => p.type === "sgi_magnetometry").length}
@@ -712,6 +882,7 @@ export default function AdminPage() {
           </button>
         </div>
       </aside>
+      )}
     </div>
   );
 }
