@@ -220,6 +220,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
         const parsed = JSON.parse(rawCamp);
         if (Array.isArray(parsed)) setCampParticipants(parsed);
       }
+      const rawPoints = localStorage.getItem(STORAGE_KEY_POINTS);
+      if (rawPoints) {
+        const parsed = JSON.parse(rawPoints);
+        if (Array.isArray(parsed) && parsed.length > 0) setDynamicPoints(parsed);
+      }
     } catch {
       // ignore
     }
