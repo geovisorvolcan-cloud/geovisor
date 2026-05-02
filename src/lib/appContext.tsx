@@ -8,7 +8,7 @@ import React, {
   useCallback,
   ReactNode,
 } from "react";
-import { PROGRESS_DATA, DATA_POINTS, DEFAULT_VOLCANO_ALERT_LEVEL, type VolcanoAlertLevel } from "@/lib/mapData";
+import { PROGRESS_DATA, DEFAULT_VOLCANO_ALERT_LEVEL, type VolcanoAlertLevel } from "@/lib/mapData";
 export type { VolcanoAlertLevel };
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5000";
@@ -96,16 +96,6 @@ const STORAGE_KEY_PROGRESS_TOTALS = "geovisor_progress_totals";
 const STORAGE_KEY_CAMP_PARTICIPANTS = "geovisor_camp_participants";
 const STORAGE_KEY_VOLCANO_ALERT = "geovisor_volcano_alert";
 
-const SEED_DYNAMIC_POINTS: DynamicPoint[] = DATA_POINTS.map((dp) => ({
-  id: dp.id,
-  type: dp.type as DynamicPointType,
-  name: dp.label ?? dp.id,
-  position: dp.position,
-  description: dp.description,
-  addedAt: "2025-01-01T00:00:00.000Z",
-  acquired: dp.acquired ?? false,
-}));
-
 const DEFAULT_PARTICIPANTS: ParticipantEntry[] = [];
 
 const DEFAULT_PROGRESS_TOTALS: ProgressTotals = PROGRESS_DATA.reduce(
@@ -127,7 +117,7 @@ const VALID_ALERT_LEVELS: VolcanoAlertLevel[] = ["green", "yellow", "orange", "r
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const [volcanoAlertLevel, setVolcanoAlertLevelState] = useState<VolcanoAlertLevel>(DEFAULT_VOLCANO_ALERT_LEVEL);
-  const [dynamicPoints, setDynamicPoints] = useState<DynamicPoint[]>(SEED_DYNAMIC_POINTS);
+  const [dynamicPoints, setDynamicPoints] = useState<DynamicPoint[]>([]);
   const [participants, setParticipants] =
     useState<ParticipantEntry[]>(DEFAULT_PARTICIPANTS);
   const [progressTotals, setProgressTotalsState] = useState<ProgressTotals>(
@@ -170,22 +160,46 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return () => clearInterval(id);
   }, []);
 
+  // Fetch data points from backend API
+  useEffect(() => {
+    const fetchDataPoints = async () => {
+      try {
+        const res = await fetch(`${API_URL}/api/map/data-points`);
+        if (!res.ok) return;
+        const data: Array<{ id: string; position: number[]; type: string; label?: string; description?: string; acquired?: boolean }> = await res.json();
+        if (!Array.isArray(data) || data.length === 0) return;
+        // Preserve acquired state from localStorage
+        const savedRaw = localStorage.getItem(STORAGE_KEY_POINTS);
+        const acquiredMap = new Map<string, boolean>();
+        if (savedRaw) {
+          try {
+            const saved = JSON.parse(savedRaw);
+            if (Array.isArray(saved)) saved.forEach((p: DynamicPoint) => acquiredMap.set(p.id, p.acquired ?? false));
+          } catch { /* ignore */ }
+        }
+        const apiPoints: DynamicPoint[] = data
+          .filter((p) => Array.isArray(p.position) && p.position.length === 2)
+          .map((p) => ({
+            id: p.id,
+            type: (p.type === "mt_acquisition" ? "uis_geophysics" : p.type === "sgi_geo" ? "sgi_magnetometry" : p.type) as DynamicPointType,
+            name: p.label ?? p.id,
+            position: p.position as [number, number],
+            description: p.description,
+            addedAt: "2025-01-01T00:00:00.000Z",
+            acquired: acquiredMap.has(p.id) ? acquiredMap.get(p.id)! : (p.acquired ?? false),
+          }));
+        setDynamicPoints(apiPoints);
+      } catch { /* keep existing points on error */ }
+    };
+    fetchDataPoints();
+  }, []);
+
   // Hydrate from localStorage on mount
   useEffect(() => {
     try {
       const rawAlert = localStorage.getItem(STORAGE_KEY_VOLCANO_ALERT);
       if (rawAlert && VALID_ALERT_LEVELS.includes(rawAlert as VolcanoAlertLevel)) {
         setVolcanoAlertLevelState(rawAlert as VolcanoAlertLevel);
-      }
-      const raw = localStorage.getItem(STORAGE_KEY_POINTS);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed)) {
-          // Always keep seed points up-to-date; preserve any user-added points
-          const seedIds = new Set(SEED_DYNAMIC_POINTS.map((p) => p.id));
-          const userAdded = parsed.filter((p: DynamicPoint) => !seedIds.has(p.id));
-          setDynamicPoints([...SEED_DYNAMIC_POINTS, ...userAdded]);
-        }
       }
       const rawP = localStorage.getItem(STORAGE_KEY_PARTICIPANTS);
       if (rawP) {
