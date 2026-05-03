@@ -84,7 +84,14 @@ function normalizePointType(type: string): DynamicPointType {
   return "sgi_magnetometry";
 }
 
-function createDynamicPointIcon(type: DynamicPointType) {
+function pointLabel(name: string, color: string) {
+  return `<span style="position:absolute;top:100%;left:50%;transform:translateX(-50%);margin-top:2px;
+    font-size:8px;font-weight:700;color:white;background:${color};
+    padding:1px 4px;border-radius:3px;white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,0.35);
+    pointer-events:none;">${escapeHtml(name)}</span>`;
+}
+
+function createDynamicPointIcon(type: DynamicPointType, name: string) {
   const pulseStyle = `
     <style>
       @keyframes geovisor-point-pulse {
@@ -102,6 +109,7 @@ function createDynamicPointIcon(type: DynamicPointType) {
         <path d="M4 14H24" stroke="white" stroke-width="1.4" opacity="0.85"/>
         <path d="M6.5 9.2H21.5M6.5 18.8H21.5" stroke="white" stroke-width="1.2" opacity="0.75"/>
       </svg>
+      ${pointLabel(name, "#F97316")}
     </div>`;
     return L.divIcon({
       html,
@@ -119,6 +127,7 @@ function createDynamicPointIcon(type: DynamicPointType) {
       <svg width="30" height="30" viewBox="0 0 30 30" fill="none" xmlns="http://www.w3.org/2000/svg" style="position:absolute;left:0;top:0;">
         <path d="M15 4L27 25H3L15 4Z" fill="${color}" stroke="white" stroke-width="2" stroke-linejoin="round"/>
       </svg>
+      ${pointLabel(name, color)}
     </div>`;
     return L.divIcon({
       html,
@@ -133,6 +142,7 @@ function createDynamicPointIcon(type: DynamicPointType) {
   const html = `${pulseStyle}<div style="position:relative;width:28px;height:28px;">
     <div style="position:absolute;left:50%;top:50%;width:22px;height:22px;border-radius:50%;background:${color};opacity:0.24;animation:geovisor-point-pulse 1.8s ease-out infinite;"></div>
     <div style="position:absolute;left:50%;top:50%;width:14px;height:14px;border-radius:50%;transform:translate(-50%, -50%);background:${color};border:2px solid white;box-shadow:0 1px 4px rgba(0,0,0,0.4);"></div>
+    ${pointLabel(name, color)}
   </div>`;
   return L.divIcon({
     html,
@@ -264,7 +274,7 @@ export default function MapView({
     visiblePoints.forEach((pt) => {
       const pointType = normalizePointType(pt.type);
       const typeLabel = DYNAMIC_LABEL[pointType] ?? pointType;
-      const icon = createDynamicPointIcon(pointType);
+      const icon = createDynamicPointIcon(pointType, pt.name);
       const added = new Date(pt.addedAt).toLocaleString();
       const [latitude, longitude] = pt.position;
 
