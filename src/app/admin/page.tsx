@@ -94,6 +94,8 @@ export default function AdminPage() {
   const [pointAcquired, setPointAcquired] = useState(false);
   const [addPointError, setAddPointError] = useState("");
   const [addPointSuccess, setAddPointSuccess] = useState(false);
+  const [acquisitionError, setAcquisitionError] = useState("");
+  const [savingAcquiredIds, setSavingAcquiredIds] = useState<Set<string>>(new Set());
   const [isAdminPanelOpen, setIsAdminPanelOpen] = useState(true);
   const [recentSosAlerts, setRecentSosAlerts] = useState<AdminSosAlert[]>([]);
   const [sosAlertsError, setSosAlertsError] = useState("");
@@ -363,7 +365,10 @@ export default function AdminPage() {
   );
   const persistAcquired = useCallback(
     async (id: string, acquired: boolean) => {
-      if (!token || id.startsWith("dp_")) return false;
+      if (!token) return { ok: false, error: "Admin session is required. Sign in again." };
+      if (id.startsWith("dp_")) {
+        return { ok: false, error: "This point was created before database-backed points were enabled. Recreate it from Add New Point." };
+      }
 
       try {
         const res = await fetch(`${API_URL}/api/admin/data-points/${encodeURIComponent(id)}/acquired`, {
@@ -374,11 +379,14 @@ export default function AdminPage() {
           },
           body: JSON.stringify({ acquired }),
         });
-        if (!res.ok) throw new Error("Could not persist acquisition status.");
-        return true;
+        const data: { error?: string } = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          return { ok: false, error: data.error ?? "Could not save acquisition status to database." };
+        }
+        return { ok: true };
       } catch (err) {
         console.error(err);
-        return false;
+        return { ok: false, error: "Network error while saving acquisition status." };
       }
     },
     [token]
@@ -386,23 +394,44 @@ export default function AdminPage() {
 
   const handleToggleAcquired = useCallback(
     async (id: string, acquired: boolean) => {
-      const previous = dynamicPoints.find((point) => point.id === id)?.acquired ?? false;
-      updateDynamicPoint(id, { acquired });
+      setAcquisitionError("");
+      setSavingAcquiredIds((prev) => new Set(prev).add(id));
 
-      const saved = await persistAcquired(id, acquired);
-      if (!saved) updateDynamicPoint(id, { acquired: previous });
+      const result = await persistAcquired(id, acquired);
+      if (result.ok) {
+        updateDynamicPoint(id, { acquired });
+      } else {
+        setAcquisitionError(result.error ?? "Could not save acquisition status to database.");
+      }
+      setSavingAcquiredIds((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
     },
-    [dynamicPoints, persistAcquired, updateDynamicPoint]
+    [persistAcquired, updateDynamicPoint]
   );
 
   const handleUpdatePoint = useCallback(
     (id: string, updates: Parameters<typeof updateDynamicPoint>[1]) => {
       const previous = dynamicPoints.find((point) => point.id === id)?.acquired ?? false;
-      updateDynamicPoint(id, updates);
+      const { acquired, ...otherUpdates } = updates;
+      updateDynamicPoint(id, otherUpdates);
 
-      if (typeof updates.acquired === "boolean" && updates.acquired !== previous) {
-        void persistAcquired(id, updates.acquired).then((saved) => {
-          if (!saved) updateDynamicPoint(id, { acquired: previous });
+      if (typeof acquired === "boolean" && acquired !== previous) {
+        setAcquisitionError("");
+        setSavingAcquiredIds((prevIds) => new Set(prevIds).add(id));
+        void persistAcquired(id, acquired).then((result) => {
+          if (result.ok) {
+            updateDynamicPoint(id, { acquired });
+          } else {
+            setAcquisitionError(result.error ?? "Could not save acquisition status to database.");
+          }
+          setSavingAcquiredIds((prevIds) => {
+            const next = new Set(prevIds);
+            next.delete(id);
+            return next;
+          });
         });
       }
     },
@@ -692,6 +721,7 @@ export default function AdminPage() {
             participantEntries={visibleMapParticipants}
             volcanoAlertLevel={volcanoAlertLevel}
             onToggleAcquired={handleToggleAcquired}
+            savingAcquiredIds={savingAcquiredIds}
           />
         </div>
       </div>
@@ -929,6 +959,11 @@ export default function AdminPage() {
             return (
               <>
                 <p className={SECTION_HEADING_CLASS}>Acquisition</p>
+                {acquisitionError && (
+                  <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-700">
+                    {acquisitionError}
+                  </p>
+                )}
                 <AcqProgressBar
                   label="Total Acquisition"
                   color="#10B981"
