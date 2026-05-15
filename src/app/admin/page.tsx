@@ -371,7 +371,7 @@ export default function AdminPage() {
       }
 
       try {
-        const res = await fetch(`${API_URL}/api/admin/data-points/${encodeURIComponent(id)}/acquired`, {
+        const res = await fetch(`${API_URL}/api/admin/data-points/${encodeURIComponent(id)}`, {
           method: "PUT",
           headers: {
             "Content-Type": "application/json",
