@@ -14,6 +14,8 @@ type TaggedMarker = L.Marker & { __markerId?: string };
 
 // ─── Icon helpers ─────────────────────────────────────────────────────────────
 
+const ACQUIRED_POINT_COLOR = "#0F766E";
+
 function escapeHtml(value: string) {
   return value
     .replace(/&/g, "&amp;")
@@ -91,7 +93,21 @@ function pointLabel(name: string, color: string) {
     pointer-events:none;">${escapeHtml(name)}</span>`;
 }
 
-function createDynamicPointIcon(type: DynamicPointType, name: string) {
+function acquiredBadge() {
+  return `<span style="position:absolute;right:-2px;top:-2px;width:14px;height:14px;border-radius:999px;
+    background:${ACQUIRED_POINT_COLOR};border:1.5px solid white;color:white;font-size:9px;font-weight:800;
+    display:flex;align-items:center;justify-content:center;line-height:1;box-shadow:0 1px 4px rgba(0,0,0,0.35);">&#10003;</span>`;
+}
+
+function pointTypeColor(type: DynamicPointType) {
+  if (type === "uis_geophysics") return "#F97316";
+  if (type === "sgi_gravimetry") return "#EC4899";
+  if (type === "sgi_magnetometry" || type === "sgi_geo") return "#D946EF";
+  if (type === "gidco") return "#22C55E";
+  return "#3B82F6";
+}
+
+function createDynamicPointIcon(type: DynamicPointType, name: string, acquired = false) {
   const pulseStyle = `
     <style>
       @keyframes geovisor-point-pulse {
@@ -100,33 +116,17 @@ function createDynamicPointIcon(type: DynamicPointType, name: string) {
         100% { transform: translate(-50%, -50%) scale(1.45); opacity: 0; }
       }
     </style>`;
+  const color = acquired ? ACQUIRED_POINT_COLOR : pointTypeColor(type);
 
   if (type === "uis_geophysics") {
     const html = `<div style="position:relative;width:30px;height:30px;display:flex;align-items:center;justify-content:center;">
       <svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <circle cx="14" cy="14" r="11" fill="#F97316" stroke="white" stroke-width="2"/>
+        <circle cx="14" cy="14" r="11" fill="${color}" stroke="white" stroke-width="2"/>
         <ellipse cx="14" cy="14" rx="4.5" ry="11" stroke="white" stroke-width="1.4" opacity="0.85"/>
         <path d="M4 14H24" stroke="white" stroke-width="1.4" opacity="0.85"/>
         <path d="M6.5 9.2H21.5M6.5 18.8H21.5" stroke="white" stroke-width="1.2" opacity="0.75"/>
       </svg>
-      ${pointLabel(name, "#F97316")}
-    </div>`;
-    return L.divIcon({
-      html,
-      className: "",
-      iconSize: [30, 30],
-      iconAnchor: [15, 15],
-      popupAnchor: [0, -18],
-    });
-  }
-
-  if (type === "sgi_magnetometry" || type === "sgi_gravimetry" || type === "sgi_geo") {
-    const color = type === "sgi_gravimetry" ? "#EC4899" : "#D946EF";
-    const html = `${pulseStyle}<div style="position:relative;width:30px;height:30px;">
-      <div style="position:absolute;left:50%;top:50%;width:24px;height:24px;border-radius:50%;background:${color};opacity:0.22;animation:geovisor-point-pulse 1.8s ease-out infinite;"></div>
-      <svg width="30" height="30" viewBox="0 0 30 30" fill="none" xmlns="http://www.w3.org/2000/svg" style="position:absolute;left:0;top:0;">
-        <path d="M15 4L27 25H3L15 4Z" fill="${color}" stroke="white" stroke-width="2" stroke-linejoin="round"/>
-      </svg>
+      ${acquired ? acquiredBadge() : ""}
       ${pointLabel(name, color)}
     </div>`;
     return L.divIcon({
@@ -138,10 +138,28 @@ function createDynamicPointIcon(type: DynamicPointType, name: string) {
     });
   }
 
-  const color = type === "gidco" ? "#22C55E" : "#3B82F6";
+  if (type === "sgi_magnetometry" || type === "sgi_gravimetry" || type === "sgi_geo") {
+    const html = `${pulseStyle}<div style="position:relative;width:30px;height:30px;">
+      <div style="position:absolute;left:50%;top:50%;width:24px;height:24px;border-radius:50%;background:${color};opacity:0.22;animation:geovisor-point-pulse 1.8s ease-out infinite;"></div>
+      <svg width="30" height="30" viewBox="0 0 30 30" fill="none" xmlns="http://www.w3.org/2000/svg" style="position:absolute;left:0;top:0;">
+        <path d="M15 4L27 25H3L15 4Z" fill="${color}" stroke="white" stroke-width="2" stroke-linejoin="round"/>
+      </svg>
+      ${acquired ? acquiredBadge() : ""}
+      ${pointLabel(name, color)}
+    </div>`;
+    return L.divIcon({
+      html,
+      className: "",
+      iconSize: [30, 30],
+      iconAnchor: [15, 15],
+      popupAnchor: [0, -18],
+    });
+  }
+
   const html = `${pulseStyle}<div style="position:relative;width:28px;height:28px;">
     <div style="position:absolute;left:50%;top:50%;width:22px;height:22px;border-radius:50%;background:${color};opacity:0.24;animation:geovisor-point-pulse 1.8s ease-out infinite;"></div>
     <div style="position:absolute;left:50%;top:50%;width:14px;height:14px;border-radius:50%;transform:translate(-50%, -50%);background:${color};border:2px solid white;box-shadow:0 1px 4px rgba(0,0,0,0.4);"></div>
+    ${acquired ? acquiredBadge() : ""}
     ${pointLabel(name, color)}
   </div>`;
   return L.divIcon({
@@ -274,7 +292,7 @@ export default function MapView({
     visiblePoints.forEach((pt) => {
       const pointType = normalizePointType(pt.type);
       const typeLabel = DYNAMIC_LABEL[pointType] ?? pointType;
-      const icon = createDynamicPointIcon(pointType, pt.name);
+      const icon = createDynamicPointIcon(pointType, pt.name, Boolean(pt.acquired));
       const added = new Date(pt.addedAt).toLocaleString();
       const [latitude, longitude] = pt.position;
 

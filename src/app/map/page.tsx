@@ -22,7 +22,7 @@ type LegendPointType =
 
 export default function MapPage() {
   const router = useRouter();
-  const { dynamicPoints, participants, progressTotals, volcanoAlertLevel, updateDynamicPoint } = useAppContext();
+  const { dynamicPoints, participants, progressTotals, volcanoAlertLevel } = useAppContext();
   type DynType = (typeof dynamicPoints)[number]["type"];
   const alertInfo = VOLCANO_ALERT_LEVELS[volcanoAlertLevel];
   const { ready, isAuthenticated, user, token, logout } = useAuth();
@@ -61,11 +61,6 @@ export default function MapPage() {
     () => (showParticipants ? participants.filter((p) => !hiddenParticipantIds.has(p.id)) : []),
     [showParticipants, participants, hiddenParticipantIds]
   );
-  const handleToggleAcquired = useCallback(
-    (id: string, acquired: boolean) => updateDynamicPoint(id, { acquired }),
-    [updateDynamicPoint]
-  );
-
   useEffect(() => {
     const tick = () =>
       setClock(
@@ -253,6 +248,10 @@ export default function MapPage() {
               type="uis_geophysics"
               label="MT – UIS"
             />
+            <div className="flex items-center gap-2 mt-3">
+              <AcquiredMiniIcon />
+              <span className="text-xs text-gray-700">Acquired point</span>
+            </div>
           </div>
         </div>
 
@@ -263,7 +262,6 @@ export default function MapPage() {
             hiddenPointTypes={hiddenPointTypes as Set<import("@/lib/appContext").DynamicPointType>}
             participantEntries={visibleParticipants}
             volcanoAlertLevel={volcanoAlertLevel}
-            onToggleAcquired={handleToggleAcquired}
           />
         </div>
       </div>
@@ -477,11 +475,11 @@ export default function MapPage() {
           <AcqProgressBar
             label="Total Characterization"
             color="#3B82F6"
-            acquired={dynamicPoints.filter((p) => !p.acquired).length}
+            acquired={dynamicPoints.length}
             total={PROGRESS_DATA.reduce((sum, item) => sum + (progressTotals[item.label] ?? item.total), 0)}
           />
           {PROGRESS_DATA.map((item) => {
-            const current = dynamicPoints.filter((p) => p.type === item.teamType && !p.acquired).length;
+            const current = dynamicPoints.filter((p) => p.type === item.teamType).length;
             const total = progressTotals[item.label] ?? item.total;
             return (
               <ProgressSummaryItem
@@ -838,6 +836,17 @@ function LegendPoint({
       <PointTypeIcon type={type} />
       <span className="text-xs text-gray-600">{label}</span>
     </div>
+  );
+}
+
+function AcquiredMiniIcon() {
+  return (
+    <span className="relative inline-flex h-5 w-5 flex-shrink-0 items-center justify-center">
+      <span className="h-3.5 w-3.5 rounded-full border-2 border-white shadow" style={{ backgroundColor: "#0F766E" }} />
+      <span className="absolute -right-0.5 -top-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full border border-white bg-[#0F766E] text-[8px] font-black leading-none text-white">
+        ✓
+      </span>
+    </span>
   );
 }
 

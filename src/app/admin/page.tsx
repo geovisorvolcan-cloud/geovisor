@@ -272,9 +272,11 @@ export default function AdminPage() {
 
   // ── Handlers ────────────────────────────────────────────────────────────
 
-  const handleAddPoint = useCallback(() => {
+  const handleAddPoint = useCallback(async () => {
     setAddPointError("");
     setAddPointSuccess(false);
+
+    if (!token) return setAddPointError("Admin session is required.");
 
     const name = pointName.trim();
     if (!name) return setAddPointError("Point name is required.");
@@ -284,15 +286,58 @@ export default function AdminPage() {
     const parsed = parsePosition(lat, lng);
     if (parsed.error) return setAddPointError(parsed.error);
 
-    addDynamicPoint({ type: team, name, position: parsed.position!, description: description.trim() || undefined, acquired: pointAcquired });
-    setPointName("");
-    setLat("");
-    setLng("");
-    setDescription("");
-    setPointAcquired(false);
-    setAddPointSuccess(true);
-    setTimeout(() => setAddPointSuccess(false), 2000);
-  }, [team, pointName, lat, lng, description, pointAcquired, addDynamicPoint]);
+    const trimmedDescription = description.trim();
+
+    try {
+      const res = await fetch(`${API_URL}/api/admin/data-points`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          pointId: name,
+          type: team,
+          position: parsed.position,
+          label: name,
+          description: trimmedDescription || undefined,
+          acquired: pointAcquired,
+        }),
+      });
+      const data: {
+        id?: string;
+        type?: DynamicPointType;
+        position?: [number, number];
+        label?: string;
+        description?: string;
+        acquired?: boolean;
+        createdAt?: string;
+        error?: string;
+      } = await res.json().catch(() => ({}));
+      if (!res.ok || !data.id || !Array.isArray(data.position) || data.position.length !== 2 || !data.type) {
+        return setAddPointError(data.error ?? "Could not save point to database.");
+      }
+
+      addDynamicPoint({
+        id: data.id,
+        type: data.type,
+        name: data.label ?? data.id,
+        position: data.position,
+        description: data.description,
+        acquired: data.acquired ?? false,
+        addedAt: data.createdAt ?? new Date().toISOString(),
+      });
+      setPointName("");
+      setLat("");
+      setLng("");
+      setDescription("");
+      setPointAcquired(false);
+      setAddPointSuccess(true);
+      setTimeout(() => setAddPointSuccess(false), 2000);
+    } catch {
+      setAddPointError("Network error while saving point to database.");
+    }
+  }, [team, pointName, lat, lng, description, pointAcquired, token, addDynamicPoint]);
 
 
   const handleSwitchUserRole = useCallback(
@@ -316,9 +361,52 @@ export default function AdminPage() {
     },
     [token]
   );
+  const persistAcquired = useCallback(
+    async (id: string, acquired: boolean) => {
+      if (!token || id.startsWith("dp_")) return false;
+
+      try {
+        const res = await fetch(`${API_URL}/api/admin/data-points/${encodeURIComponent(id)}/acquired`, {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ acquired }),
+        });
+        if (!res.ok) throw new Error("Could not persist acquisition status.");
+        return true;
+      } catch (err) {
+        console.error(err);
+        return false;
+      }
+    },
+    [token]
+  );
+
   const handleToggleAcquired = useCallback(
-    (id: string, acquired: boolean) => updateDynamicPoint(id, { acquired }),
-    [updateDynamicPoint]
+    async (id: string, acquired: boolean) => {
+      const previous = dynamicPoints.find((point) => point.id === id)?.acquired ?? false;
+      updateDynamicPoint(id, { acquired });
+
+      const saved = await persistAcquired(id, acquired);
+      if (!saved) updateDynamicPoint(id, { acquired: previous });
+    },
+    [dynamicPoints, persistAcquired, updateDynamicPoint]
+  );
+
+  const handleUpdatePoint = useCallback(
+    (id: string, updates: Parameters<typeof updateDynamicPoint>[1]) => {
+      const previous = dynamicPoints.find((point) => point.id === id)?.acquired ?? false;
+      updateDynamicPoint(id, updates);
+
+      if (typeof updates.acquired === "boolean" && updates.acquired !== previous) {
+        void persistAcquired(id, updates.acquired).then((saved) => {
+          if (!saved) updateDynamicPoint(id, { acquired: previous });
+        });
+      }
+    },
+    [dynamicPoints, persistAcquired, updateDynamicPoint]
   );
 
   if (!ready || !hasAdminAccess) {
@@ -571,6 +659,10 @@ export default function AdminPage() {
               <LegendPoint type="sgi_gravimetry" label="SGI GEO (GRAV)" />
               <LegendPoint type="gidco" label="MT – GIDCO" />
               <LegendPoint type="uis_geophysics" label="MT – UIS" />
+              <div className="flex items-center gap-2 mt-3">
+                <AcquiredMini />
+                <span className="text-xs text-gray-700">Acquired point</span>
+              </div>
             </div>
 
           </div>
@@ -807,11 +899,11 @@ export default function AdminPage() {
           <AcqProgressBar
             label="Total Characterization"
             color="#3B82F6"
-            acquired={dynamicPoints.filter((p) => !p.acquired).length}
+            acquired={dynamicPoints.length}
             total={PROGRESS_DATA.reduce((sum, item) => sum + (progressTotals[item.label] ?? item.total), 0)}
           />
           {PROGRESS_DATA.map((item) => {
-            const current = dynamicPoints.filter((p) => p.type === item.teamType && !p.acquired).length;
+            const current = dynamicPoints.filter((p) => p.type === item.teamType).length;
             const total = progressTotals[item.label] ?? item.total;
             const points = dynamicPoints.filter((p) => p.type === item.teamType);
             return (
@@ -823,7 +915,7 @@ export default function AdminPage() {
                 color={item.color}
                 points={points}
                 onSetTotal={(newTotal) => setProgressTotal(item.label, newTotal)}
-                onUpdatePoint={(id, updates) => updateDynamicPoint(id, updates)}
+                onUpdatePoint={handleUpdatePoint}
                 onDeletePoint={(id) => removeDynamicPoint(id)}
               />
             );
@@ -956,6 +1048,17 @@ function LegendPoint({ type, label }: { type: DynamicPointType; label: string })
       <PointTypeIcon type={type} animated />
       <span className="text-xs text-gray-600">{label}</span>
     </div>
+  );
+}
+
+function AcquiredMini() {
+  return (
+    <span className="relative inline-flex h-5 w-5 flex-shrink-0 items-center justify-center">
+      <span className="h-3.5 w-3.5 rounded-full border-2 border-white shadow" style={{ backgroundColor: "#0F766E" }} />
+      <span className="absolute -right-0.5 -top-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full border border-white bg-[#0F766E] text-[8px] font-black leading-none text-white">
+        ✓
+      </span>
+    </span>
   );
 }
 

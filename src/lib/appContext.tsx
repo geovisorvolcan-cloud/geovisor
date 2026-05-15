@@ -64,11 +64,14 @@ export interface CampParticipant {
   registeredAt: string;
 }
 
+type NewDynamicPoint = Omit<DynamicPoint, "id" | "addedAt"> &
+  Partial<Pick<DynamicPoint, "id" | "addedAt">>;
+
 interface AppContextType {
   volcanoAlertLevel: VolcanoAlertLevel;
   setVolcanoAlertLevel: (level: VolcanoAlertLevel) => void;
   dynamicPoints: DynamicPoint[];
-  addDynamicPoint: (point: Omit<DynamicPoint, "id" | "addedAt">) => void;
+  addDynamicPoint: (point: NewDynamicPoint) => void;
   removeDynamicPoint: (id: string) => void;
   updateDynamicPoint: (
     id: string,
@@ -168,7 +171,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (!res.ok) return;
         const data: Array<{ id: string; position: number[]; type: string; label?: string; description?: string; acquired?: boolean }> = await res.json();
         if (!Array.isArray(data) || data.length === 0) return;
-        // Preserve acquired state from localStorage
+        // Use backend acquisition state when present; localStorage is only a fallback for older API responses.
         const savedRaw = localStorage.getItem(STORAGE_KEY_POINTS);
         const acquiredMap = new Map<string, boolean>();
         if (savedRaw) {
@@ -186,7 +189,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
             position: p.position as [number, number],
             description: p.description,
             addedAt: "2025-01-01T00:00:00.000Z",
-            acquired: acquiredMap.has(p.id) ? acquiredMap.get(p.id)! : (p.acquired ?? false),
+            acquired: typeof p.acquired === "boolean"
+              ? p.acquired
+              : acquiredMap.has(p.id)
+                ? acquiredMap.get(p.id)!
+                : false,
           }));
         setDynamicPoints(apiPoints);
       } catch { /* keep existing points on error */ }
@@ -262,11 +269,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const addDynamicPoint = useCallback(
-    (point: Omit<DynamicPoint, "id" | "addedAt">) => {
+    (point: NewDynamicPoint) => {
       const newPoint: DynamicPoint = {
         ...point,
-        id: `dp_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-        addedAt: new Date().toISOString(),
+        id: point.id ?? `dp_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+        addedAt: point.addedAt ?? new Date().toISOString(),
       };
       setDynamicPoints((prev) => [...prev, newPoint]);
     },
