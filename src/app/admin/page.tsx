@@ -536,6 +536,12 @@ export default function AdminPage() {
               ← Map
             </button>
             <button
+              onClick={() => router.push("/admin/points")}
+              className="px-3 py-1.5 bg-white/80 backdrop-blur rounded-full shadow text-xs font-medium text-gray-600 hover:bg-white transition"
+            >
+              Points Table
+            </button>
+            <button
               onClick={() => router.push("/profile")}
               className="px-3 py-1.5 bg-white/80 backdrop-blur rounded-full shadow text-xs font-medium text-gray-600 hover:bg-white transition"
             >
