@@ -4,7 +4,7 @@ import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import { playSosAlarmSound } from "@/lib/alertAudio";
-import { useAppContext, DynamicPointType, ParticipantEntry, VolcanoAlertLevel } from "@/lib/appContext";
+import { useAppContext, DynamicPoint, DynamicPointType, ParticipantEntry, VolcanoAlertLevel } from "@/lib/appContext";
 import { useAuth } from "@/lib/authContext";
 import { PROGRESS_DATA, VOLCANO_ALERT_LEVELS } from "@/lib/mapData";
 import ProgressAdjustItem from "@/components/ProgressAdjustItem";
@@ -45,6 +45,12 @@ type AdminSosAlert = {
   message: string;
   resolved: boolean;
   createdAt: string;
+};
+
+type SaveResult = {
+  ok: boolean;
+  status?: number;
+  error?: string;
 };
 
 function parsePosition(latValue: string, lngValue: string) {
@@ -363,25 +369,74 @@ export default function AdminPage() {
     },
     [token]
   );
-  const persistAcquired = useCallback(
-    async (id: string, acquired: boolean) => {
+  const updateAcquiredInDatabase = useCallback(
+    async (id: string, acquired: boolean): Promise<SaveResult> => {
       if (!token) return { ok: false, error: "Admin session is required. Sign in again." };
-      if (id.startsWith("dp_")) {
-        return { ok: false, error: "This point was created before database-backed points were enabled. Recreate it from Add New Point." };
-      }
+
+      const res = await fetch(`${API_URL}/api/admin/data-points/${encodeURIComponent(id)}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ acquired }),
+      });
+      const data: { error?: string } = await res.json().catch(() => ({}));
+
+      if (res.ok) return { ok: true, status: res.status };
+
+      return {
+        ok: false,
+        status: res.status,
+        error: data.error ?? "Could not save acquisition status to database.",
+      };
+    },
+    [token]
+  );
+
+  const createMissingDataPoint = useCallback(
+    async (point: DynamicPoint, acquired: boolean): Promise<SaveResult> => {
+      if (!token) return { ok: false, error: "Admin session is required. Sign in again." };
+
+      const res = await fetch(`${API_URL}/api/admin/data-points`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          pointId: point.id,
+          type: point.type,
+          position: point.position,
+          label: point.name || point.id,
+          description: point.description || undefined,
+          acquired,
+        }),
+      });
+      const data: { error?: string } = await res.json().catch(() => ({}));
+
+      if (res.ok) return { ok: true };
+      if (res.status === 409) return updateAcquiredInDatabase(point.id, acquired);
+
+      return {
+        ok: false,
+        error: data.error ?? "Could not create this point in the database.",
+      };
+    },
+    [token, updateAcquiredInDatabase]
+  );
+
+  const persistAcquired = useCallback(
+    async (id: string, acquired: boolean, point?: DynamicPoint): Promise<SaveResult> => {
+      if (!token) return { ok: false, error: "Admin session is required. Sign in again." };
 
       try {
-        const res = await fetch(`${API_URL}/api/admin/data-points/${encodeURIComponent(id)}`, {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({ acquired }),
-        });
-        const data: { error?: string } = await res.json().catch(() => ({}));
-        if (!res.ok) {
-          return { ok: false, error: data.error ?? "Could not save acquisition status to database." };
+        const result = await updateAcquiredInDatabase(id, acquired);
+        if (!result.ok) {
+          if (result.status === 404 && point) {
+            return createMissingDataPoint(point, acquired);
+          }
+          return { ok: false, error: result.error };
         }
         return { ok: true };
       } catch (err) {
@@ -389,15 +444,16 @@ export default function AdminPage() {
         return { ok: false, error: "Network error while saving acquisition status." };
       }
     },
-    [token]
+    [createMissingDataPoint, token, updateAcquiredInDatabase]
   );
 
   const handleToggleAcquired = useCallback(
     async (id: string, acquired: boolean) => {
       setAcquisitionError("");
       setSavingAcquiredIds((prev) => new Set(prev).add(id));
+      const point = dynamicPoints.find((item) => item.id === id);
 
-      const result = await persistAcquired(id, acquired);
+      const result = await persistAcquired(id, acquired, point);
       if (result.ok) {
         updateDynamicPoint(id, { acquired });
       } else {
@@ -409,19 +465,21 @@ export default function AdminPage() {
         return next;
       });
     },
-    [persistAcquired, updateDynamicPoint]
+    [dynamicPoints, persistAcquired, updateDynamicPoint]
   );
 
   const handleUpdatePoint = useCallback(
     (id: string, updates: Parameters<typeof updateDynamicPoint>[1]) => {
-      const previous = dynamicPoints.find((point) => point.id === id)?.acquired ?? false;
+      const currentPoint = dynamicPoints.find((point) => point.id === id);
+      const previous = currentPoint?.acquired ?? false;
       const { acquired, ...otherUpdates } = updates;
       updateDynamicPoint(id, otherUpdates);
 
       if (typeof acquired === "boolean" && acquired !== previous) {
         setAcquisitionError("");
         setSavingAcquiredIds((prevIds) => new Set(prevIds).add(id));
-        void persistAcquired(id, acquired).then((result) => {
+        const pointToPersist = currentPoint ? { ...currentPoint, ...otherUpdates } : undefined;
+        void persistAcquired(id, acquired, pointToPersist).then((result) => {
           if (result.ok) {
             updateDynamicPoint(id, { acquired });
           } else {
